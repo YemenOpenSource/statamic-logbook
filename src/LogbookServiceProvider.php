@@ -13,6 +13,8 @@ class LogbookServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/logbook.php', 'logbook');
+        $this->app->singleton(\EmranAlhaddad\StatamicLogbook\Audit\AuditRecorder::class);
+        $this->app->singleton(\EmranAlhaddad\StatamicLogbook\Audit\ChangeDetector::class);
     }
 
     public function boot(): void
@@ -28,6 +30,14 @@ class LogbookServiceProvider extends ServiceProvider
         }
 
         $this->registerCpMiddleware();
+        if (config('logbook.audit_logs.enabled', true) && class_exists(\Statamic\Statamic::class)) {
+            $subscriber = new \EmranAlhaddad\StatamicLogbook\Audit\StatamicAuditSubscriber(
+                recorder: $this->app->make(\EmranAlhaddad\StatamicLogbook\Audit\AuditRecorder::class),
+                detector: $this->app->make(\EmranAlhaddad\StatamicLogbook\Audit\ChangeDetector::class),
+            );
+
+            $subscriber->subscribe();
+        }
     }
 
     protected function registerCpMiddleware(): void
