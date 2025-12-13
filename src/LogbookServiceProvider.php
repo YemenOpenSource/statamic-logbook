@@ -71,7 +71,7 @@ class LogbookServiceProvider extends ServiceProvider
                 ->title('Logbook')
                 ->navTitle('Logbook')
                 ->description('System logs + user audit logs in one place.')
-                ->icon('logbook') // built-in icon name (safe + simple)
+                ->icon($this->svgIcon('logbook')) // built-in icon name (safe + simple)
                 ->action(LogbookUtilityController::class) // __invoke
                 ->routes(function ($router) {
                     $router->get('/system', [LogbookUtilityController::class, 'system'])->name('system');
@@ -82,5 +82,16 @@ class LogbookServiceProvider extends ServiceProvider
                     // $router->get('/audit/export.csv', ...)->name('audit.export');
                 });
         });
+    }
+
+    protected function svgIcon(string $name): string
+    {
+        $path = __DIR__ . '/../resources/svg/' . $name . '.svg';
+
+        if (! file_exists($path)) {
+            return ''; // fails silently
+        }
+
+        return file_get_contents($path) ?: '';
     }
 }
