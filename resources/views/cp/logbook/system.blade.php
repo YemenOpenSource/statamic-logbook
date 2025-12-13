@@ -13,6 +13,42 @@ default => 'bg-gray-200 text-gray-700'
 @endphp
 
 @section('panel')
+@if(isset($stats))
+<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+    <div class="card p-3">
+        <div class="text-xs text-gray-600">Last 24h</div>
+        <div class="text-2xl font-semibold mt-1">{{ $stats['total_24h'] ?? 0 }}</div>
+        <div class="text-xs text-gray-600 mt-1">Total logs</div>
+    </div>
+
+    <div class="card p-3">
+        <div class="text-xs text-gray-600">Last 24h</div>
+        <div class="text-2xl font-semibold mt-1">{{ $stats['errors_24h'] ?? 0 }}</div>
+        <div class="text-xs text-gray-600 mt-1">Errors/Critical</div>
+    </div>
+
+    <div class="card p-3">
+        <div class="text-xs text-gray-600">Last 24h</div>
+        <div class="text-2xl font-semibold mt-1">{{ $stats['warnings_24h'] ?? 0 }}</div>
+        <div class="text-xs text-gray-600 mt-1">Warnings</div>
+    </div>
+
+    <div class="card p-3">
+        <div class="text-xs text-gray-600">Top levels (7d)</div>
+        <div class="mt-2 space-y-1">
+            @forelse(($stats['top_levels_7d'] ?? []) as $it)
+            <div class="flex justify-between text-xs">
+                <span class="font-mono">{{ $it['level'] }}</span>
+                <span class="text-gray-700">{{ $it['count'] }}</span>
+            </div>
+            @empty
+            <div class="text-xs text-gray-600">—</div>
+            @endforelse
+        </div>
+    </div>
+</div>
+@endif
+
 <form method="GET" class="mb-4">
     <div class="flex flex-wrap gap-2 items-end">
         <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="input-text w-40">

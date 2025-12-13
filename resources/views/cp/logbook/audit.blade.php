@@ -12,6 +12,44 @@ default => 'bg-gray-200 text-gray-700'
 @endphp
 
 @section('panel')
+@if(isset($stats))
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+    <div class="card p-3">
+        <div class="text-xs text-gray-600">Last 24h</div>
+        <div class="text-2xl font-semibold mt-1">{{ $stats['total_24h'] ?? 0 }}</div>
+        <div class="text-xs text-gray-600 mt-1">Total audit actions</div>
+    </div>
+
+    <div class="card p-3">
+        <div class="text-xs text-gray-600">Top actions (7d)</div>
+        <div class="mt-2 space-y-1">
+            @forelse(($stats['top_actions_7d'] ?? []) as $it)
+            <div class="flex justify-between text-xs">
+                <span class="font-mono truncate" title="{{ $it['action'] }}">{{ $it['action'] }}</span>
+                <span class="text-gray-700">{{ $it['count'] }}</span>
+            </div>
+            @empty
+            <div class="text-xs text-gray-600">—</div>
+            @endforelse
+        </div>
+    </div>
+
+    <div class="card p-3">
+        <div class="text-xs text-gray-600">Top users (7d)</div>
+        <div class="mt-2 space-y-1">
+            @forelse(($stats['top_users_7d'] ?? []) as $it)
+            <div class="flex justify-between text-xs">
+                <span class="truncate" title="{{ $it['user'] }}">{{ $it['user'] }}</span>
+                <span class="text-gray-700">{{ $it['count'] }}</span>
+            </div>
+            @empty
+            <div class="text-xs text-gray-600">—</div>
+            @endforelse
+        </div>
+    </div>
+</div>
+@endif
+
 <form method="GET" class="mb-4">
     <div class="flex flex-wrap gap-2 items-end">
         <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="input-text w-40">
