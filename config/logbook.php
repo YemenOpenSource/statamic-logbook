@@ -2,8 +2,20 @@
 
 return [
     'db' => [
-        // null => use default DB connection
-        'connection' => env('LOGBOOK_DB_CONNECTION', null),
+        'connection' => [
+            'driver' => env('LOGBOOK_DB_CONNECTION'),
+            'host' => env('LOGBOOK_DB_HOST'),
+            'port' => env('LOGBOOK_DB_PORT', '3306'),
+            'database' => env('LOGBOOK_DB_DATABASE'),
+            'username' => env('LOGBOOK_DB_USERNAME'),
+            'password' => env('LOGBOOK_DB_PASSWORD'),
+            'unix_socket' => env('LOGBOOK_DB_SOCKET', ''),
+            'charset' => env('LOGBOOK_DB_CHARSET', 'utf8mb4'),
+            'collation' => env('LOGBOOK_DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'strict' => true,
+            'engine' => null,
+        ],
     ],
 
     'system_logs' => [
