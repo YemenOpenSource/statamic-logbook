@@ -20,30 +20,30 @@
             </tr>
         </thead>
         <tbody>
-            @forelse($rows as $row)
+            @forelse($logs as $log)
             @php
-            $changes = $row->changes ? json_decode($row->changes, true) : null;
-            $meta = $row->meta ? json_decode($row->meta, true) : null;
+            $changes = $log->changes ? json_decode($log->changes, true) : null;
+            $meta = $log->meta ? json_decode($log->meta, true) : null;
             $hasChanges = is_array($changes) && !empty($changes);
             $hasMeta = is_array($meta) && !empty($meta);
             @endphp
 
             <tr class="hover:bg-gray-50">
-                <td class="text-xs text-gray-700 whitespace-nowrap">{{ $row->created_at }}</td>
+                <td class="text-xs text-gray-700 whitespace-nowrap">{{ $log->created_at }}</td>
 
                 <td>
                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
-                        {{ $row->action }}
+                        {{ $log->action }}
                     </span>
                 </td>
 
                 <td class="text-sm text-gray-900">
-                    <div class="font-medium">{{ $row->subject_type }}</div>
-                    <div class="text-xs text-gray-600">{{ $row->subject_id }}</div>
+                    <div class="font-medium">{{ $log->subject_type }}</div>
+                    <div class="text-xs text-gray-600">{{ $log->subject_id }}</div>
                 </td>
 
                 <td class="text-xs text-gray-700">
-                    {{ $row->user_id ?: '—' }}
+                    {{ $log->user_id ?: '—' }}
                 </td>
 
                 <td class="text-right">
@@ -55,7 +55,7 @@
                             title="View changes"
                             onclick="window.__logbookOpenModal({
                                   title: 'Audit Changes',
-                                  subtitle: '{{ addslashes($row->action) }} • {{ addslashes($row->subject_type) }}',
+                                  subtitle: '{{ addslashes($log->action) }} • {{ addslashes($log->subject_type) }}',
                                   payload: {{ json_encode($changes ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
                                 })">
                             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
@@ -72,7 +72,7 @@
                             title="View meta"
                             onclick="window.__logbookOpenModal({
                                   title: 'Audit Meta',
-                                  subtitle: '{{ addslashes($row->action) }}',
+                                  subtitle: '{{ addslashes($log->action) }}',
                                   payload: {{ json_encode($meta ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
                                 })">
                             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
@@ -96,9 +96,9 @@
     </table>
 </div>
 
-@if(method_exists($rows, 'links'))
+@if(method_exists($logs, 'links'))
 <div class="mt-4">
-    {{ $rows->withQueryString()->links() }}
+    {{ $logs->withQueryString()->links() }}
 </div>
 @endif
 @endsection

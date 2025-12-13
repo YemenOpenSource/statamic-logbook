@@ -23,15 +23,15 @@
             </tr>
         </thead>
         <tbody>
-            @forelse($rows as $row)
+            @forelse($logs as $log)
             @php
-            $ctx = $row->context ? json_decode($row->context, true) : null;
+            $ctx = $log->context ? json_decode($log->context, true) : null;
             $hasCtx = is_array($ctx) && !empty($ctx);
-            $level = strtolower($row->level);
+            $level = strtolower($log->level);
             @endphp
             <tr class="hover:bg-gray-50">
                 <td class="text-xs text-gray-700 whitespace-nowrap">
-                    {{ $row->created_at }}
+                    {{ $log->created_at }}
                 </td>
 
                 <td>
@@ -46,16 +46,16 @@
                 </td>
 
                 <td class="text-sm text-gray-900">
-                    {{ $row->message }}
+                    {{ $log->message }}
                 </td>
 
                 <td class="text-xs text-gray-700">
-                    {{ $row->user_id ?: '—' }}
+                    {{ $log->user_id ?: '—' }}
                 </td>
 
                 <td class="text-xs text-gray-700">
                     <div class="truncate">
-                        {{ $row->method ?: '—' }} {{ $row->url ?: '' }}
+                        {{ $log->method ?: '—' }} {{ $log->url ?: '' }}
                     </div>
                 </td>
 
@@ -68,7 +68,7 @@
                             title="View context"
                             onclick="window.__logbookOpenModal({
                                   title: 'System Context',
-                                  subtitle: '{{ addslashes($row->message) }}',
+                                  subtitle: '{{ addslashes($log->message) }}',
                                   payload: {{ json_encode($ctx ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
                                 })">
                             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
@@ -91,9 +91,9 @@
     </table>
 </div>
 
-@if(method_exists($rows, 'links'))
+@if(method_exists($logs, 'links'))
 <div class="mt-4">
-    {{ $rows->withQueryString()->links() }}
+    {{ $logs->withQueryString()->links() }}
 </div>
 @endif
 @endsection
