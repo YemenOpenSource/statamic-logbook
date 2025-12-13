@@ -6,7 +6,8 @@ use Illuminate\Support\ServiceProvider;
 use EmranAlhaddad\StatamicLogbook\Console\InstallCommand;
 use Illuminate\Support\Facades\Router;
 use EmranAlhaddad\StatamicLogbook\Http\Middleware\LogbookRequestContext;
-
+use Statamic\Facades\Utility;
+use EmranAlhaddad\StatamicLogbook\Http\Controllers\LogbookUtilityController;
 
 class LogbookServiceProvider extends ServiceProvider
 {
@@ -19,6 +20,8 @@ class LogbookServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'statamic-logbook');
+        
         $this->publishes([
             __DIR__ . '/../config/logbook.php' => config_path('logbook.php'),
         ], 'logbook-config');
@@ -38,6 +41,8 @@ class LogbookServiceProvider extends ServiceProvider
 
             $subscriber->subscribe();
         }
+
+        $this->bootCpUtility();
     }
 
     protected function registerCpMiddleware(): void
@@ -57,5 +62,25 @@ class LogbookServiceProvider extends ServiceProvider
             // Fail silently – don't break the app if a project has a different setup
             // (We can add a debug log later if needed)
         }
+    }
+
+    protected function bootCpUtility(): void
+    {
+        Utility::extend(function () {
+            Utility::register('logbook')
+                ->title('Logbook')
+                ->navTitle('Logbook')
+                ->description('System logs + user audit logs in one place.')
+                ->icon('file-content') // built-in icon name (safe + simple)
+                ->action(LogbookUtilityController::class) // __invoke
+                ->routes(function ($router) {
+                    $router->get('/system', [LogbookUtilityController::class, 'system'])->name('system');
+                    $router->get('/audit',  [LogbookUtilityController::class, 'audit'])->name('audit');
+
+                    // Stage 5D لاحقًا:
+                    // $router->get('/system/export.csv', ...)->name('system.export');
+                    // $router->get('/audit/export.csv', ...)->name('audit.export');
+                });
+        });
     }
 }
