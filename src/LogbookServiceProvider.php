@@ -15,7 +15,8 @@ use EmranAlhaddad\StatamicLogbook\Audit\AuditRecorder;
 use EmranAlhaddad\StatamicLogbook\Audit\ChangeDetector;
 use EmranAlhaddad\StatamicLogbook\Audit\StatamicAuditSubscriber;
 use EmranAlhaddad\StatamicLogbook\Console\PruneCommand;
-
+use Statamic\Facades\Widget;
+use EmranAlhaddad\StatamicLogbook\Widgets\LogbookStatsWidget;
 
 class LogbookServiceProvider extends ServiceProvider
 {
@@ -63,6 +64,8 @@ class LogbookServiceProvider extends ServiceProvider
 
         // CP Utility (Logbook pages in CP)
         $this->bootCpUtility();
+
+        Widget::register(LogbookStatsWidget::class);
     }
 
     protected function registerPermissions(): void
