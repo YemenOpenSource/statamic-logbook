@@ -7,6 +7,8 @@ use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\LogRecord;
 use Monolog\Level;
 use EmranAlhaddad\StatamicLogbook\Support\DbConnectionResolver;
+use EmranAlhaddad\StatamicLogbook\Support\Sanitizer;
+
 
 class DbSystemLogHandler extends AbstractProcessingHandler
 {
@@ -47,10 +49,17 @@ class DbSystemLogHandler extends AbstractProcessingHandler
                 ?? $request->headers->get('X-Request-Id');
         }
 
+
+        $ctx = $record->context ?? [];
+        $ctx = is_array($ctx) ? $ctx : [];
+        $ctx = Sanitizer::maskArray($ctx);
+
         DB::connection($conn)->table('logbook_system_logs')->insert([
             'level'      => strtolower($record->level->getName()),
             'message'    => (string) $record->message,
-            'context'    => !empty($record->context) ? json_encode($record->context, JSON_UNESCAPED_UNICODE) : null,
+            'context'    => !empty($ctx)
+                ? json_encode($ctx, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : null,
             'channel'    => $this->forcedChannel ?: $record->channel,
             'request_id' => $requestId,
             'user_id'    => $userId,

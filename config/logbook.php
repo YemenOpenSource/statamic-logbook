@@ -25,7 +25,7 @@ return [
     'audit_logs' => [
         'enabled' => env('LOGBOOK_AUDIT_ENABLED', true),
 
-         // ✅ Allow-list: only these events get recorded.
+        // ✅ Allow-list: only these events get recorded.
         // You can delete/keep what you want.
         'events' => [
             // Assets
@@ -197,4 +197,22 @@ return [
     ],
 
     'retention_days' => (int) env('LOGBOOK_RETENTION_DAYS', 365),
+    'privacy' => [
+        'mask_keys' => [
+            'password',
+            'pass',
+            'token',
+            'access_token',
+            'refresh_token',
+            'authorization',
+            'cookie',
+            'session',
+            'api_key',
+            'apikey',
+            'secret',
+            'client_secret',
+        ],
+        'mask_value' => '[REDACTED]',
+    ],
+
 ];
