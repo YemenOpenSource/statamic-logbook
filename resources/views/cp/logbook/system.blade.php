@@ -1,90 +1,160 @@
-@extends('statamic-logbook::cp.logbook._layout', [
-'activeTab' => 'system',
-'exportUrl' => cp_route('utilities.logbook.system.export')
-])
+@extends('statamic-logbook::cp.logbook._layout', ['active' => 'system'])
 
-@section('logbook-body')
-@include('statamic-logbook::cp.logbook._filters', [
-'levels' => $levels ?? [],
-'channels' => $channels ?? [],
-'resetUrl' => cp_route('utilities.logbook.system')
-])
+@php
+$b64 = fn($v) => base64_encode((string) $v);
 
-<div class="overflow-hidden border rounded-lg">
-    <table class="data-table w-full">
-        <thead class="bg-white sticky top-0">
+$levelColor = fn($l) => match (strtolower((string) $l)) {
+'emergency','alert','critical','error' => 'bg-red-700 text-white',
+'warning' => 'bg-orange text-black',
+'notice','info' => 'bg-blue text-white',
+'debug' => 'bg-gray-700 text-white',
+default => 'bg-gray-300 text-black'
+};
+@endphp
+
+<style>
+    #main .page-wrapper {
+        max-width: 100% !important;
+    }
+
+    .footer-pagination nav {
+        display: flex;
+        flex-direction: column;
+        gap: 25px;
+        margin-top: 40px;
+    }
+
+    .footer-pagination nav> :nth-child(2) {
+        gap: 10%;
+        align-items: center;
+    }
+</style>
+
+@section('panel')
+@if(isset($stats))
+<div class="flex flex-col md:flex-row gap-3 mb-4">
+    <div class="card p-3 flex-1">
+        <div class="text-xs text-gray-600">Last 24h</div>
+        <div class="text-2xl font-semibold mt-1">{{ $stats['total_24h'] ?? 0 }}</div>
+        <div class="text-xs text-gray-600 mt-1">Total logs</div>
+    </div>
+
+    <div class="card p-3 flex-1">
+        <div class="text-xs text-gray-600">Errors/Critical (24h)</div>
+        <div class="text-2xl font-semibold mt-1">{{ $stats['errors_24h'] ?? 0 }}</div>
+        <div class="text-xs text-gray-600 mt-1">High severity</div>
+    </div>
+
+    <div class="card p-3 flex-1">
+        <div class="text-xs text-gray-600">Warnings (24h)</div>
+        <div class="text-2xl font-semibold mt-1">{{ $stats['warnings_24h'] ?? 0 }}</div>
+        <div class="text-xs text-gray-600 mt-1">Investigate</div>
+    </div>
+
+    <div class="card p-3 flex-1">
+        <div class="text-xs text-gray-600">Top levels (7d)</div>
+        <div class="mt-2 space-y-1">
+            @forelse(($stats['top_levels_7d'] ?? []) as $it)
+            <div class="flex justify-between text-xs">
+                <span class="font-mono">{{ $it['level'] }}</span>
+                <span class="text-gray-700">{{ $it['count'] }}</span>
+            </div>
+            @empty
+            <div class="text-xs text-gray-600">—</div>
+            @endforelse
+        </div>
+    </div>
+</div>
+@endif
+
+<form method="GET" class="mb-4">
+    <div class="flex flex-col gap-2 w-full">
+        <div class="flex flex-row gap-2 items-end flex-1 min-w-[240px]">
+            <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="input-text w-40">
+            <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="input-text w-40">
+        </div>
+        <div class="flex flex-col gap-2 items-end flex-1 min-w-[240px]">
+            <select name="level" class="input-text w-40">
+                <option value="">All levels</option>
+                @foreach($levels as $lvl)
+                <option value="{{ $lvl }}" @selected(($filters['level'] ?? '' )===$lvl)>{{ $lvl }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <input type="text" name="q" value="{{ $filters['q'] ?? '' }}"
+                class="input-text flex-1 min-w-[220px]" placeholder="Search message">
+            <button class="btn-primary flex gap-1" type="submit">🔍 Apply</button>
+            <a class="btn flex gap-1" href="{{ cp_route('utilities.logbook.system') }}">♻ Reset</a>
+            <a class="btn" href="{{ cp_route('utilities.logbook.system.export', request()->query()) }}">⬇ Export CSV</a>
+        </div>
+    </div>
+</form>
+
+<div class="card p-0 overflow-x-auto">
+    <table class="data-table">
+        <thead>
             <tr>
-                <th class="w-[180px]">Time</th>
-                <th class="w-[120px]">Level</th>
+                <th>Time</th>
+                <th>Level</th>
                 <th>Message</th>
-                <th class="w-[160px]">User</th>
-                <th class="w-[320px]">Request</th>
-                <th class="w-[120px] text-right">Actions</th>
+                <th>User</th>
+                <th class="w-[140px]">Details</th>
             </tr>
         </thead>
         <tbody>
-            @forelse($logs as $log)
-            @php
-            $ctx = $log->context ? json_decode($log->context, true) : null;
-            $hasCtx = is_array($ctx) && !empty($ctx);
-            $level = strtolower($log->level);
-            @endphp
-            <tr class="hover:bg-gray-50">
-                <td class="text-xs text-gray-700 whitespace-nowrap">
-                    {{ $log->created_at }}
-                </td>
+            @forelse($logs as $row)
+            <tr>
+                <td class="text-xs whitespace-nowrap">{{ $row->created_at }}</td>
 
                 <td>
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                        {{ in_array($level, ['error','critical','alert','emergency']) ? 'bg-red-100 text-red-700' : '' }}
-                        {{ $level === 'warning' ? 'bg-yellow-100 text-yellow-700' : '' }}
-                        {{ in_array($level, ['info','notice']) ? 'bg-blue-100 text-blue-700' : '' }}
-                        {{ $level === 'debug' ? 'bg-gray-100 text-gray-700' : '' }}
-                    ">
-                        {{ strtoupper($level) }}
+                    <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $levelColor($row->level) }}">
+                        {{ strtoupper($row->level) }}
                     </span>
                 </td>
 
-                <td class="text-sm text-gray-900">
-                    {{ $log->message }}
+                <td class="max-w-[720px]">
+                    <div class="truncate" title="{{ $row->message }}">{{ $row->message }}</div>
                 </td>
 
-                <td class="text-xs text-gray-700">
-                    {{ $log->user_id ?: '—' }}
-                </td>
+                <td class="text-xs">{{ $row->user_id ?? '—' }}</td>
 
-                <td class="text-xs text-gray-700">
-                    <div class="truncate">
-                        {{ $log->method ?: '—' }} {{ $log->url ?: '' }}
-                    </div>
-                </td>
-
-                <td class="text-right">
-                    <div class="inline-flex items-center gap-1">
-                        @if($hasCtx)
+                <td>
+                    <div class="flex gap-1">
+                        @if($row->context)
                         <button
                             type="button"
-                            class="btn btn-default"
-                            title="View context"
-                            onclick="window.__logbookOpenModal({
-                                  title: 'System Context',
-                                  subtitle: '{{ addslashes($log->message) }}',
-                                  payload: {{ json_encode($ctx ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
-                                })">
-                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                                <path d="M9 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                <path d="M15 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                        </button>
+                            class="btn"
+                            onclick="__logbookOpenModal('Context', '{{ $b64($row->context) }}', '{{ addslashes($row->message) }}')"
+                            title="View context">🧾</button>
+                        @endif
+
+                        @if($row->request_id)
+                        @php
+                        $req = json_encode([
+                        'request_id' => $row->request_id,
+                        'method' => $row->method,
+                        'url' => $row->url,
+                        'ip' => $row->ip,
+                        'user_agent' => $row->user_agent,
+                        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                        @endphp
+                        <button
+                            type="button"
+                            class="btn"
+                            onclick="__logbookOpenModal('Request', '{{ $b64($req) }}', '{{ addslashes($row->method.' '.$row->url) }}')"
+                            title="View request">🌐</button>
+                        @endif
+
+                        @if(!$row->context && !$row->request_id)
+                        <span class="text-xs text-gray-500">—</span>
                         @endif
                     </div>
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="6" class="p-8 text-center text-sm text-gray-600">
-                    No system logs found for this filter.
-                </td>
+                <td colspan="5" class="p-4 text-gray-600">No logs found.</td>
             </tr>
             @endforelse
         </tbody>
@@ -92,8 +162,6 @@
 </div>
 
 @if(method_exists($logs, 'links'))
-<div class="mt-4">
-    {{ $logs->withQueryString()->links() }}
-</div>
+<div class="mt-4 footer-pagination">{{ $logs->withQueryString()->links() }}</div>
 @endif
 @endsection

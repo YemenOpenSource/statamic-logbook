@@ -3,123 +3,146 @@
 @section('title', 'Logbook')
 
 @section('content')
-<div class="w-full max-w-none px-0">
-    {{-- Header --}}
-    <div class="flex items-start justify-between mb-6">
-        <div>
-            <h1 class="text-2xl font-semibold leading-tight">Logbook</h1>
-            <p class="text-sm text-gray-600 mt-1">
-                System logs + user audit logs in one place.
-            </p>
-        </div>
+<style>
+  /* Full width in CP */
+  .content .container { max-width: 100% !important; }
 
+  /* Small UI tweaks */
+  .logbook-subtle { color: rgba(55,65,81,.85); }
+  .logbook-card { border-radius: 14px; }
+  .logbook-tab { position: relative; }
+  .logbook-tab.active::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    background: #2563eb;
+    border-radius: 999px;
+  }
+
+  /* Modal */
+  .logbook-modal-pre {
+    background: #0b1220;
+    color: #e5e7eb;
+    border-radius: 12px;
+    overflow: auto;
+  }
+
+</style>
+
+<div class="mb-5">
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h1 class="mb-1 text-2xl font-semibold">Logbook</h1>
+      <div class="text-sm logbook-subtle">
+        System logs & user audit logs
+      </div>
+    </div>
+
+    {{-- optional: put global actions later --}}
+  </div>
+</div>
+
+<div class="card p-0 overflow-hidden w-full logbook-card">
+  <div class="flex items-center gap-6 border-b px-4 bg-gray-50/60">
+    <a href="{{ cp_route('utilities.logbook.system') }}"
+      class="py-3 text-sm font-medium logbook-tab {{ $active === 'system' ? 'text-blue active' : 'text-gray-700' }}">
+      System Logs
+    </a>
+
+    <a href="{{ cp_route('utilities.logbook.audit') }}"
+      class="py-3 text-sm font-medium logbook-tab {{ $active === 'audit' ? 'text-blue active' : 'text-gray-700' }}">
+      Audit Logs
+    </a>
+  </div>
+
+  <div class="p-4 w-full emran">
+    @yield('panel')
+  </div>
+</div>
+
+{{-- Modal --}}
+<div id="logbook-modal" class="hidden fixed inset-0 z-[9999] w-screen h-screen overflow-auto">
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-[6px]" style="backdrop-filter: blur(6px);" onclick="__logbookClose()"></div>
+  <div class="relative min-h-screen w-full flex items-center justify-center py-10 px-2">
+    <div class="card w-full max-w-5xl p-0 logbook-card shadow-2xl border border-blue-700"
+      style="max-height:90vh; display: flex; flex-direction: column;">
+      <div class="flex justify-between items-center border-b px-4 py-3 bg-gray-50/60 sticky top-0 z-10">
+        <div class="min-w-0">
+          <div id="logbook-modal-title" class="font-semibold text-sm truncate">Details</div>
+          <div id="logbook-modal-subtitle" class="text-xs text-gray-600 truncate"></div>
+        </div>
         <div class="flex items-center gap-2">
-            @isset($exportUrl)
-            <a href="{{ $exportUrl }}" class="btn btn-primary flex items-center gap-2">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                    <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M5 21h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                </svg>
-                <span>Export CSV</span>
-            </a>
-            @endisset
+          <button class="btn" onclick="__logbookCopy(event)">Copy</button>
+          <button class="btn" onclick="__logbookClose()">Close</button>
         </div>
+      </div>
+      <pre id="logbook-modal-body"
+        class="p-4 text-xs whitespace-pre-wrap break-words overflow-auto flex-1 logbook-modal-pre"
+        style="max-height: 70vh;"></pre>
     </div>
-
-    {{-- Tabs --}}
-    <div class="bg-white border rounded-lg shadow-sm overflow-hidden">
-        <div class="border-b bg-gray-50 px-4">
-            <nav class="flex gap-2 py-3">
-                <a
-                    href="{{ cp_route('utilities.logbook.system') }}"
-                    class="px-3 py-2 rounded-md text-sm font-medium {{ $activeTab === 'system' ? 'bg-white shadow-sm border text-blue-700' : 'text-gray-700 hover:bg-white hover:shadow-sm' }}">
-                    System Logs
-                </a>
-                <a
-                    href="{{ cp_route('utilities.logbook.audit') }}"
-                    class="px-3 py-2 rounded-md text-sm font-medium {{ $activeTab === 'audit' ? 'bg-white shadow-sm border text-blue-700' : 'text-gray-700 hover:bg-white hover:shadow-sm' }}">
-                    Audit Logs
-                </a>
-            </nav>
-        </div>
-
-        <div class="p-4">
-            @yield('logbook-body')
-        </div>
-    </div>
+  </div>
 </div>
-
-{{-- Global Modal --}}
-<div id="logbook-modal" class="fixed inset-0 z-50 hidden">
-    <div class="absolute inset-0 bg-black/50" data-logbook-close></div>
-
-    <div class="relative mx-auto mt-16 w-[95%] max-w-4xl">
-        <div class="bg-white rounded-xl shadow-xl overflow-hidden border">
-            <div class="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
-                <div class="min-w-0">
-                    <div id="logbook-modal-title" class="text-sm font-semibold truncate">Details</div>
-                    <div id="logbook-modal-subtitle" class="text-xs text-gray-600 truncate"></div>
-                </div>
-                <button type="button" class="btn btn-default" data-logbook-close>
-                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                        <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                        <path d="M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                    </svg>
-                </button>
-            </div>
-
-            <div class="p-4">
-                <pre id="logbook-modal-body" class="text-xs bg-gray-900 text-gray-100 rounded-lg p-4 overflow-auto max-h-[65vh] whitespace-pre-wrap"></pre>
-            </div>
-        </div>
-    </div>
-</div>
-
-{{-- Modal JS (no dependencies) --}}
-@push('scripts')
-<script>
-    (function() {
-        const modal = document.getElementById('logbook-modal');
-        const titleEl = document.getElementById('logbook-modal-title');
-        const subtitleEl = document.getElementById('logbook-modal-subtitle');
-        const bodyEl = document.getElementById('logbook-modal-body');
-
-        function openModal({
-            title = 'Details',
-            subtitle = '',
-            payload = {}
-        }) {
-            titleEl.textContent = title;
-            subtitleEl.textContent = subtitle;
-            try {
-                bodyEl.textContent = JSON.stringify(payload ?? {}, null, 2);
-            } catch (e) {
-                bodyEl.textContent = String(payload ?? '');
-            }
-            modal.classList.remove('hidden');
-            document.body.classList.add('overflow-hidden');
-        }
-
-        function closeModal() {
-            modal.classList.add('hidden');
-            document.body.classList.remove('overflow-hidden');
-        }
-
-        // expose globally (fixes your old console error)
-        window.__logbookOpenModal = function(opts) {
-            openModal(opts || {});
-        };
-        window.__logbookCloseModal = closeModal;
-
-        modal.addEventListener('click', (e) => {
-            if (e.target && e.target.matches('[data-logbook-close]')) closeModal();
-        });
-
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
-        });
-    })();
-</script>
-@endpush
 @endsection
+
+@section('scripts')
+<script>
+  // Unicode-safe base64 decode
+  function __logbookDecodeBase64Unicode(b64) {
+    if (!b64) return '';
+    const binary = atob(b64);
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  function __logbookOpenModal(title, payloadB64, subtitle) {
+    document.getElementById('logbook-modal-title').textContent = title || 'Details';
+    document.getElementById('logbook-modal-subtitle').textContent = subtitle || '';
+    const text = payloadB64 ? __logbookDecodeBase64Unicode(payloadB64) : '—';
+    document.getElementById('logbook-modal-body').textContent = text;
+    document.getElementById('logbook-modal').classList.remove('hidden');
+    document.body.classList.add('overflow-hidden');
+  }
+
+  function __logbookClose() {
+    document.getElementById('logbook-modal').classList.add('hidden');
+    document.body.classList.remove('overflow-hidden');
+  }
+
+  function __logbookCopy() {
+    const text = document.getElementById('logbook-modal-body').textContent || '';
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () {
+        alert('Copied to clipboard');
+      }, function (err) {
+        // fallback
+        __fallbackCopy(text);
+      });
+    } else {
+      __fallbackCopy(text);
+    }
+
+    function __fallbackCopy(txt) {
+      const textarea = document.createElement('textarea');
+      textarea.value = txt;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'absolute';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        alert('Copied to clipboard');
+      } catch (e) {
+        alert('Failed to copy');
+      }
+      document.body.removeChild(textarea);
+    }
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') __logbookClose();
+  });
+</script>
+@endsection
+
