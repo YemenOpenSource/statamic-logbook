@@ -1,127 +1,104 @@
-@extends('statamic-logbook::cp.logbook._layout', ['active' => 'audit'])
+@extends('statamic-logbook::cp.logbook._layout', [
+'activeTab' => 'audit',
+'exportUrl' => cp_route('utilities.logbook.audit.export')
+])
 
-@php
-$b64 = fn($v) => base64_encode((string) $v);
+@section('logbook-body')
+@include('statamic-logbook::cp.logbook._filters', [
+'resetUrl' => cp_route('utilities.logbook.audit')
+])
 
-$actionColor = fn($a) => match (true) {
-str_contains($a,'created') => 'bg-green-100 text-green-700',
-str_contains($a,'updated') || str_contains($a,'saved') => 'bg-blue-100 text-blue-700',
-str_contains($a,'deleted') => 'bg-red-100 text-red-700',
-default => 'bg-gray-200 text-gray-700'
-};
-@endphp
-
-@section('panel')
-@if(isset($stats))
-<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-    <div class="card p-3">
-        <div class="text-xs text-gray-600">Last 24h</div>
-        <div class="text-2xl font-semibold mt-1">{{ $stats['total_24h'] ?? 0 }}</div>
-        <div class="text-xs text-gray-600 mt-1">Total audit actions</div>
-    </div>
-
-    <div class="card p-3">
-        <div class="text-xs text-gray-600">Top actions (7d)</div>
-        <div class="mt-2 space-y-1">
-            @forelse(($stats['top_actions_7d'] ?? []) as $it)
-            <div class="flex justify-between text-xs">
-                <span class="font-mono truncate" title="{{ $it['action'] }}">{{ $it['action'] }}</span>
-                <span class="text-gray-700">{{ $it['count'] }}</span>
-            </div>
-            @empty
-            <div class="text-xs text-gray-600">—</div>
-            @endforelse
-        </div>
-    </div>
-
-    <div class="card p-3">
-        <div class="text-xs text-gray-600">Top users (7d)</div>
-        <div class="mt-2 space-y-1">
-            @forelse(($stats['top_users_7d'] ?? []) as $it)
-            <div class="flex justify-between text-xs">
-                <span class="truncate" title="{{ $it['user'] }}">{{ $it['user'] }}</span>
-                <span class="text-gray-700">{{ $it['count'] }}</span>
-            </div>
-            @empty
-            <div class="text-xs text-gray-600">—</div>
-            @endforelse
-        </div>
-    </div>
-</div>
-@endif
-
-<form method="GET" class="mb-4">
-    <div class="flex flex-wrap gap-2 items-end">
-        <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="input-text w-40">
-        <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="input-text w-40">
-
-        <select name="action" class="input-text w-56">
-            <option value="">All actions</option>
-            @foreach($actions as $a)
-            <option value="{{ $a }}" @selected(($filters['action'] ?? '' )===$a)>{{ $a }}</option>
-            @endforeach
-        </select>
-
-        <input type="text" name="q" value="{{ $filters['q'] ?? '' }}"
-            class="input-text flex-1 min-w-[200px]" placeholder="Search subject">
-
-        <button class="btn-primary flex gap-1">🔍 Apply</button>
-        <a class="btn flex gap-1" href="{{ cp_route('utilities.logbook.audit') }}">♻ Reset</a>
-        <a class="btn" href="{{ cp_route('utilities.logbook.audit.export', request()->query()) }}">
-            ⬇ Export CSV
-        </a>
-
-    </div>
-</form>
-
-<div class="card p-0 overflow-x-auto">
-    <table class="data-table">
-        <thead>
+<div class="overflow-hidden border rounded-lg">
+    <table class="data-table w-full">
+        <thead class="bg-white sticky top-0">
             <tr>
-                <th>Time</th>
-                <th>Action</th>
-                <th>Subject</th>
-                <th>User</th>
-                <th>Changes</th>
+                <th class="w-[180px]">Time</th>
+                <th class="w-[140px]">Action</th>
+                <th>Target</th>
+                <th class="w-[160px]">User</th>
+                <th class="w-[120px] text-right">Actions</th>
             </tr>
         </thead>
         <tbody>
-            @forelse($logs as $row)
-            <tr>
-                <td class="text-xs">{{ $row->created_at }}</td>
+            @forelse($rows as $row)
+            @php
+            $changes = $row->changes ? json_decode($row->changes, true) : null;
+            $meta = $row->meta ? json_decode($row->meta, true) : null;
+            $hasChanges = is_array($changes) && !empty($changes);
+            $hasMeta = is_array($meta) && !empty($meta);
+            @endphp
+
+            <tr class="hover:bg-gray-50">
+                <td class="text-xs text-gray-700 whitespace-nowrap">{{ $row->created_at }}</td>
 
                 <td>
-                    <span class="px-2 py-1 rounded text-xs font-semibold {{ $actionColor($row->action) }}">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
                         {{ $row->action }}
                     </span>
                 </td>
 
-                <td>
-                    <div class="font-medium">{{ $row->subject_title ?? $row->subject_handle }}</div>
-                    <div class="text-xs text-gray-600">{{ $row->subject_type }} · {{ $row->subject_id }}</div>
+                <td class="text-sm text-gray-900">
+                    <div class="font-medium">{{ $row->subject_type }}</div>
+                    <div class="text-xs text-gray-600">{{ $row->subject_id }}</div>
                 </td>
 
-                <td class="text-xs">{{ $row->user_email ?? $row->user_id ?? '—' }}</td>
+                <td class="text-xs text-gray-700">
+                    {{ $row->user_id ?: '—' }}
+                </td>
 
-                <td>
-                    @if($row->changes)
-                    @php
-                    $payload = json_encode(json_decode($row->changes, true), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-                    @endphp
-                    <button class="btn" onclick="__logbookOpenModal('Audit Changes', '{{ $b64($payload) }}')">🧠 View</button>
-                    @else
-                    —
-                    @endif
+                <td class="text-right">
+                    <div class="inline-flex items-center gap-1">
+                        @if($hasChanges)
+                        <button
+                            type="button"
+                            class="btn btn-default"
+                            title="View changes"
+                            onclick="window.__logbookOpenModal({
+                                  title: 'Audit Changes',
+                                  subtitle: '{{ addslashes($row->action) }} • {{ addslashes($row->subject_type) }}',
+                                  payload: {{ json_encode($changes ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
+                                })">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                        @endif
+
+                        @if($hasMeta)
+                        <button
+                            type="button"
+                            class="btn btn-default"
+                            title="View meta"
+                            onclick="window.__logbookOpenModal({
+                                  title: 'Audit Meta',
+                                  subtitle: '{{ addslashes($row->action) }}',
+                                  payload: {{ json_encode($meta ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
+                                })">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 22a10 10 0 1 0-10-10 10 10 0 0 0 10 10z" stroke="currentColor" stroke-width="2" />
+                                <path d="M12 16v-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                <path d="M12 8h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                            </svg>
+                        </button>
+                        @endif
+                    </div>
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="5" class="p-4 text-gray-600">No audit logs found.</td>
+                <td colspan="5" class="p-8 text-center text-sm text-gray-600">
+                    No audit logs found for this filter.
+                </td>
             </tr>
             @endforelse
         </tbody>
     </table>
 </div>
 
-<div class="mt-4">{{ $logs->links() }}</div>
+@if(method_exists($rows, 'links'))
+<div class="mt-4">
+    {{ $rows->withQueryString()->links() }}
+</div>
+@endif
 @endsection

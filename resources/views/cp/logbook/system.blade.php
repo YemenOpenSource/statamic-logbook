@@ -1,134 +1,99 @@
-@extends('statamic-logbook::cp.logbook._layout', ['active' => 'system'])
+@extends('statamic-logbook::cp.logbook._layout', [
+'activeTab' => 'system',
+'exportUrl' => cp_route('utilities.logbook.system.export')
+])
 
-@php
-$b64 = fn($v) => base64_encode((string) $v);
+@section('logbook-body')
+@include('statamic-logbook::cp.logbook._filters', [
+'levels' => $levels ?? [],
+'channels' => $channels ?? [],
+'resetUrl' => cp_route('utilities.logbook.system')
+])
 
-$levelColor = fn($l) => match ($l) {
-'emergency','alert','critical','error' => 'bg-red-100 text-red-700',
-'warning' => 'bg-yellow-100 text-yellow-700',
-'notice','info' => 'bg-blue-100 text-blue-700',
-'debug' => 'bg-gray-200 text-gray-700',
-default => 'bg-gray-200 text-gray-700'
-};
-@endphp
-
-@section('panel')
-@if(isset($stats))
-<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-    <div class="card p-3">
-        <div class="text-xs text-gray-600">Last 24h</div>
-        <div class="text-2xl font-semibold mt-1">{{ $stats['total_24h'] ?? 0 }}</div>
-        <div class="text-xs text-gray-600 mt-1">Total logs</div>
-    </div>
-
-    <div class="card p-3">
-        <div class="text-xs text-gray-600">Last 24h</div>
-        <div class="text-2xl font-semibold mt-1">{{ $stats['errors_24h'] ?? 0 }}</div>
-        <div class="text-xs text-gray-600 mt-1">Errors/Critical</div>
-    </div>
-
-    <div class="card p-3">
-        <div class="text-xs text-gray-600">Last 24h</div>
-        <div class="text-2xl font-semibold mt-1">{{ $stats['warnings_24h'] ?? 0 }}</div>
-        <div class="text-xs text-gray-600 mt-1">Warnings</div>
-    </div>
-
-    <div class="card p-3">
-        <div class="text-xs text-gray-600">Top levels (7d)</div>
-        <div class="mt-2 space-y-1">
-            @forelse(($stats['top_levels_7d'] ?? []) as $it)
-            <div class="flex justify-between text-xs">
-                <span class="font-mono">{{ $it['level'] }}</span>
-                <span class="text-gray-700">{{ $it['count'] }}</span>
-            </div>
-            @empty
-            <div class="text-xs text-gray-600">—</div>
-            @endforelse
-        </div>
-    </div>
-</div>
-@endif
-
-<form method="GET" class="mb-4">
-    <div class="flex flex-wrap gap-2 items-end">
-        <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="input-text w-40">
-        <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="input-text w-40">
-
-        <select name="level" class="input-text w-40">
-            <option value="">All levels</option>
-            @foreach($levels as $lvl)
-            <option value="{{ $lvl }}" @selected(($filters['level'] ?? '' )===$lvl)>{{ $lvl }}</option>
-            @endforeach
-        </select>
-
-        <input type="text" name="q" value="{{ $filters['q'] ?? '' }}"
-            class="input-text flex-1 min-w-[200px]" placeholder="Search message">
-
-        <button class="btn-primary flex gap-1">🔍 Apply</button>
-        <a class="btn flex gap-1" href="{{ cp_route('utilities.logbook.system') }}">♻ Reset</a>
-        <a class="btn" href="{{ cp_route('utilities.logbook.system.export', request()->query()) }}">
-            ⬇ Export CSV
-        </a>
-    </div>
-</form>
-
-<div class="card p-0 overflow-x-auto">
-    <table class="data-table">
-        <thead>
+<div class="overflow-hidden border rounded-lg">
+    <table class="data-table w-full">
+        <thead class="bg-white sticky top-0">
             <tr>
-                <th>Time</th>
-                <th>Level</th>
+                <th class="w-[180px]">Time</th>
+                <th class="w-[120px]">Level</th>
                 <th>Message</th>
-                <th>User</th>
-                <th>Details</th>
+                <th class="w-[160px]">User</th>
+                <th class="w-[320px]">Request</th>
+                <th class="w-[120px] text-right">Actions</th>
             </tr>
         </thead>
         <tbody>
-            @forelse($logs as $row)
-            <tr>
-                <td class="text-xs">{{ $row->created_at }}</td>
+            @forelse($rows as $row)
+            @php
+            $ctx = $row->context ? json_decode($row->context, true) : null;
+            $hasCtx = is_array($ctx) && !empty($ctx);
+            $level = strtolower($row->level);
+            @endphp
+            <tr class="hover:bg-gray-50">
+                <td class="text-xs text-gray-700 whitespace-nowrap">
+                    {{ $row->created_at }}
+                </td>
 
                 <td>
-                    <span class="px-2 py-1 rounded text-xs font-semibold {{ $levelColor($row->level) }}">
-                        {{ $row->level }}
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
+                        {{ in_array($level, ['error','critical','alert','emergency']) ? 'bg-red-100 text-red-700' : '' }}
+                        {{ $level === 'warning' ? 'bg-yellow-100 text-yellow-700' : '' }}
+                        {{ in_array($level, ['info','notice']) ? 'bg-blue-100 text-blue-700' : '' }}
+                        {{ $level === 'debug' ? 'bg-gray-100 text-gray-700' : '' }}
+                    ">
+                        {{ strtoupper($level) }}
                     </span>
                 </td>
 
-                <td>{{ $row->message }}</td>
-                <td class="text-xs">{{ $row->user_id ?? '—' }}</td>
+                <td class="text-sm text-gray-900">
+                    {{ $row->message }}
+                </td>
 
-                <td>
-                    <div class="flex gap-1">
-                        @if($row->context)
-                        <button class="btn" onclick="__logbookOpenModal('Context', '{{ $b64($row->context) }}')">🧾</button>
-                        @endif
+                <td class="text-xs text-gray-700">
+                    {{ $row->user_id ?: '—' }}
+                </td>
 
-                        @if($row->request_id)
-                        @php
-                        $req = json_encode([
-                        'request_id' => $row->request_id,
-                        'method' => $row->method,
-                        'url' => $row->url,
-                        'ip' => $row->ip,
-                        ], JSON_PRETTY_PRINT);
-                        @endphp
-                        <button class="btn" onclick="__logbookOpenModal('Request', '{{ $b64($req) }}')">🌐</button>
-                        @endif
+                <td class="text-xs text-gray-700">
+                    <div class="truncate">
+                        {{ $row->method ?: '—' }} {{ $row->url ?: '' }}
+                    </div>
+                </td>
 
-                        @if(!$row->context && !$row->request_id)
-                        —
+                <td class="text-right">
+                    <div class="inline-flex items-center gap-1">
+                        @if($hasCtx)
+                        <button
+                            type="button"
+                            class="btn btn-default"
+                            title="View context"
+                            onclick="window.__logbookOpenModal({
+                                  title: 'System Context',
+                                  subtitle: '{{ addslashes($row->message) }}',
+                                  payload: {{ json_encode($ctx ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
+                                })">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                <path d="M9 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                <path d="M15 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </button>
                         @endif
                     </div>
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="5" class="p-4 text-gray-600">No logs found.</td>
+                <td colspan="6" class="p-8 text-center text-sm text-gray-600">
+                    No system logs found for this filter.
+                </td>
             </tr>
             @endforelse
         </tbody>
     </table>
 </div>
 
-<div class="mt-4">{{ $logs->links() }}</div>
+@if(method_exists($rows, 'links'))
+<div class="mt-4">
+    {{ $rows->withQueryString()->links() }}
+</div>
+@endif
 @endsection
