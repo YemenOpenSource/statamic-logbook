@@ -111,7 +111,31 @@ config/logbook.php
 
 Environment variables are used only for sensitive or environment-specific values.
 
+### System Log Capture Controls
+
+```env
+LOGBOOK_SYSTEM_LOGS_ENABLED=true
+LOGBOOK_SYSTEM_LOGS_LEVEL=debug
+LOGBOOK_SYSTEM_LOGS_BUBBLE=true
+LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS=deprecations
+LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES=Since symfony/http-foundation,Unable to create configured logger. Using emergency logger.
+```
+
+- `LOGBOOK_SYSTEM_LOGS_ENABLED`: enable/disable automatic system log capture
+- `LOGBOOK_SYSTEM_LOGS_LEVEL`: minimum level captured (`debug`, `info`, `warning`, `error`, ...)
+- `LOGBOOK_SYSTEM_LOGS_BUBBLE`: Monolog bubble behavior for handler compatibility
+- `LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS`: comma-separated channels to ignore
+- `LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES`: comma-separated message fragments to ignore
+
 ## 🧠 Audit Configuration
+
+### Exclude noisy events (default captures all Statamic events)
+
+```env
+LOGBOOK_AUDIT_EXCLUDE_EVENTS="Statamic\\Events\\ResponseCreated,Statamic\\Events\\SearchIndexUpdated"
+```
+
+Use `audit_logs.exclude_events` in `config/logbook.php` to block specific event classes while keeping auto discovery enabled.
 
 ### Ignore noisy or irrelevant fields
 

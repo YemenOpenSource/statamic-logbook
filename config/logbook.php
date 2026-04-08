@@ -18,168 +18,98 @@ return [
         ],
     ],
 
+    'system_logs' => [
+        'enabled' => (bool) env('LOGBOOK_SYSTEM_LOGS_ENABLED', true),
+        'level' => env('LOGBOOK_SYSTEM_LOGS_LEVEL', 'debug'),
+        'bubble' => (bool) env('LOGBOOK_SYSTEM_LOGS_BUBBLE', true),
+        // Ignore noisy framework channels/messages by default.
+        'ignore_channels' => array_filter(array_map('trim', explode(',', env(
+            'LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS',
+            'deprecations'
+        )))),
+        'ignore_message_contains' => array_filter(array_map('trim', explode(',', env(
+            'LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES',
+            'Since symfony/http-foundation,Unable to create configured logger. Using emergency logger.'
+        )))),
+    ],
+
     'audit_logs' => [
 
-        // ✅ Allow-list: only these events get recorded.
-        // You can delete/keep what you want.
+        // Default behavior: listen to all Statamic events, then exclude noisy ones below.
+        // 'events' is kept as a fallback allow-list if auto discovery is unavailable.
         'events' => [
+            // Fallback high-signal mutation events.
+
             // Assets
-            \Statamic\Events\AssetContainerBlueprintFound::class,
-            \Statamic\Events\AssetContainerCreating::class,
-            \Statamic\Events\AssetContainerDeleted::class,
-            \Statamic\Events\AssetContainerSaved::class,
             \Statamic\Events\AssetCreated::class,
-            \Statamic\Events\AssetCreating::class,
-            \Statamic\Events\AssetDeleting::class,
             \Statamic\Events\AssetDeleted::class,
-            \Statamic\Events\AssetFolderDeleted::class,
-            \Statamic\Events\AssetFolderSaved::class,
             \Statamic\Events\AssetSaved::class,
-            \Statamic\Events\AssetSaving::class,
             \Statamic\Events\AssetUploaded::class,
 
-            // Blueprints
-            \Statamic\Events\BlueprintCreating::class,
-            \Statamic\Events\BlueprintDeleting::class,
-            \Statamic\Events\BlueprintDeleted::class,
-            \Statamic\Events\BlueprintSaved::class,
-
-            // Collections
-            \Statamic\Events\CollectionDeleting::class,
-            \Statamic\Events\CollectionDeleted::class,
-            \Statamic\Events\CollectionCreated::class,
-            \Statamic\Events\CollectionCreating::class,
-            \Statamic\Events\CollectionSaved::class,
-            \Statamic\Events\CollectionSaving::class,
-            \Statamic\Events\CollectionTreeDeleted::class,
-            \Statamic\Events\CollectionTreeSaved::class,
-            \Statamic\Events\CollectionTreeSaving::class,
-
             // Entries
-            \Statamic\Events\EntryBlueprintFound::class,
             \Statamic\Events\EntryCreated::class,
-            \Statamic\Events\EntryCreating::class,
-            \Statamic\Events\EntryDeleting::class,
             \Statamic\Events\EntryDeleted::class,
             \Statamic\Events\EntrySaved::class,
             \Statamic\Events\EntrySaving::class,
-            \Statamic\Events\EntryScheduleReached::class,
 
-            // Fieldsets
-            \Statamic\Events\FieldsetCreating::class,
-            \Statamic\Events\FieldsetDeleting::class,
-            \Statamic\Events\FieldsetDeleted::class,
-            \Statamic\Events\FieldsetSaved::class,
-
-            // Forms
-            \Statamic\Events\FormBlueprintFound::class,
-            \Statamic\Events\FormCreating::class,
-            \Statamic\Events\FormDeleting::class,
-            \Statamic\Events\FormDeleted::class,
-            \Statamic\Events\FormSaved::class,
-            \Statamic\Events\FormSubmitted::class,
-
-            // Glide
-            \Statamic\Events\GlideAssetCacheCleared::class,
-            \Statamic\Events\GlideCacheCleared::class,
-            \Statamic\Events\GlideImageGenerated::class,
-
-            // Globals
-            \Statamic\Events\GlobalSetCreating::class,
-            \Statamic\Events\GlobalSetDeleting::class,
-            \Statamic\Events\GlobalSetDeleted::class,
-            \Statamic\Events\GlobalSetSaved::class,
-
-            // Global Variables
-            \Statamic\Events\GlobalVariablesCreated::class,
-            \Statamic\Events\GlobalVariablesCreating::class,
-            \Statamic\Events\GlobalVariablesDeleting::class,
-            \Statamic\Events\GlobalVariablesDeleted::class,
-            \Statamic\Events\GlobalVariablesSaved::class,
-            \Statamic\Events\GlobalVariablesSaving::class,
-            \Statamic\Events\GlobalVariablesBlueprintFound::class,
-
-            // Impersonation
-            \Statamic\Events\ImpersonationStarted::class,
-            \Statamic\Events\ImpersonationEnded::class,
-
-            // Licenses
-            \Statamic\Events\LicensesRefreshed::class,
-            \Statamic\Events\LicenseSet::class,
-
-            // Localized Terms
-            \Statamic\Events\LocalizedTermDeleted::class,
-            \Statamic\Events\LocalizedTermSaved::class,
-
-            // Navigation
-            \Statamic\Events\NavCreated::class,
-            \Statamic\Events\NavCreating::class,
-            \Statamic\Events\NavDeleting::class,
-            \Statamic\Events\NavDeleted::class,
-            \Statamic\Events\NavSaved::class,
-            \Statamic\Events\NavSaving::class,
-            \Statamic\Events\NavTreeSaved::class,
-            \Statamic\Events\NavTreeSaving::class,
-
-            // Response
-            \Statamic\Events\ResponseCreated::class,
-
-            // Revisions
-            \Statamic\Events\RevisionDeleted::class,
-            \Statamic\Events\RevisionSaving::class,
-            \Statamic\Events\RevisionSaved::class,
-
-            // Roles
-            \Statamic\Events\RoleDeleted::class,
-            \Statamic\Events\RoleSaved::class,
-
-            // Search
-            \Statamic\Events\SearchIndexUpdated::class,
-
-            // Sites
-            \Statamic\Events\SiteCreated::class,
-            \Statamic\Events\SiteDeleted::class,
-            \Statamic\Events\SiteSaved::class,
-
-            // Stache / Static Cache
-            \Statamic\Events\StacheCleared::class,
-            \Statamic\Events\StacheWarmed::class,
-            \Statamic\Events\StaticCacheCleared::class,
-
-            // Submissions
-            \Statamic\Events\SubmissionCreated::class,
-            \Statamic\Events\SubmissionCreating::class,
-            \Statamic\Events\SubmissionDeleted::class,
-            \Statamic\Events\SubmissionSaved::class,
-
-            // Taxonomy
-            \Statamic\Events\TaxonomyCreating::class,
-            \Statamic\Events\TaxonomyDeleting::class,
+            // Collections / taxonomy / terms
+            \Statamic\Events\CollectionCreated::class,
+            \Statamic\Events\CollectionDeleted::class,
+            \Statamic\Events\CollectionSaved::class,
             \Statamic\Events\TaxonomyDeleted::class,
             \Statamic\Events\TaxonomySaved::class,
-
-            // Terms
-            \Statamic\Events\TermBlueprintFound::class,
-            \Statamic\Events\TermCreating::class,
-            \Statamic\Events\TermDeleting::class,
             \Statamic\Events\TermDeleted::class,
             \Statamic\Events\TermSaved::class,
 
-            // Users / Groups
-            \Statamic\Events\UserBlueprintFound::class,
-            \Statamic\Events\UserCreating::class,
-            \Statamic\Events\UserDeleting::class,
+            // Global content / navigation
+            \Statamic\Events\GlobalSetDeleted::class,
+            \Statamic\Events\GlobalSetSaved::class,
+            \Statamic\Events\GlobalVariablesDeleted::class,
+            \Statamic\Events\GlobalVariablesSaved::class,
+            \Statamic\Events\NavDeleted::class,
+            \Statamic\Events\NavSaved::class,
+            \Statamic\Events\NavTreeSaved::class,
+
+            // User/security actions
+            \Statamic\Events\ImpersonationStarted::class,
+            \Statamic\Events\ImpersonationEnded::class,
             \Statamic\Events\UserDeleted::class,
+            \Statamic\Events\UserSaved::class,
+            \Statamic\Events\UserPasswordChanged::class,
             \Statamic\Events\UserGroupDeleted::class,
             \Statamic\Events\UserGroupSaved::class,
-            \Statamic\Events\UserPasswordChanged::class,
-            \Statamic\Events\UserRegistering::class,
-            \Statamic\Events\UserRegistered::class,
-            \Statamic\Events\UserSaved::class,
+            \Statamic\Events\RoleDeleted::class,
+            \Statamic\Events\RoleSaved::class,
 
-            // Url / Caches
-            \Statamic\Events\UrlInvalidated::class,
+            // Forms
+            \Statamic\Events\FormDeleted::class,
+            \Statamic\Events\FormSaved::class,
+            \Statamic\Events\FormSubmitted::class,
+            \Statamic\Events\SubmissionDeleted::class,
+            \Statamic\Events\SubmissionSaved::class,
         ],
+
+        // Block-list: events you do NOT want to audit.
+        'exclude_events' => array_values(array_unique(array_merge([
+            \Statamic\Events\AssetContainerBlueprintFound::class,
+            \Statamic\Events\EntryBlueprintFound::class,
+            \Statamic\Events\FormBlueprintFound::class,
+            \Statamic\Events\GlobalVariablesBlueprintFound::class,
+            \Statamic\Events\TermBlueprintFound::class,
+            \Statamic\Events\UserBlueprintFound::class,
+            \Statamic\Events\ResponseCreated::class,
+            \Statamic\Events\GlideAssetCacheCleared::class,
+            \Statamic\Events\GlideCacheCleared::class,
+            \Statamic\Events\GlideImageGenerated::class,
+            \Statamic\Events\StacheCleared::class,
+            \Statamic\Events\StacheWarmed::class,
+            \Statamic\Events\StaticCacheCleared::class,
+            \Statamic\Events\SearchIndexUpdated::class,
+            \Statamic\Events\UrlInvalidated::class,
+        ], array_filter(array_map('trim', explode(',', env(
+            'LOGBOOK_AUDIT_EXCLUDE_EVENTS',
+            ''
+        ))))))),
 
         // fields to ignore when computing diffs (noise)
         'ignore_fields' => array_filter(array_map('trim', explode(',', env(

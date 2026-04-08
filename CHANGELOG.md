@@ -13,11 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 * Automatic system log capture without manual `logging.php` wiring
 * Runtime listener for Laravel `MessageLogged` events to write into Logbook DB
+* Automatic Statamic event discovery for audit logging with configurable `exclude_events`
+* Environment override for audit exclusions via `LOGBOOK_AUDIT_EXCLUDE_EVENTS`
 
 ### Changed
 
 * Improved system log handler resilience to avoid app failures when log DB is unavailable
 * Added safer level parsing fallback in logger factory
+* Updated configuration/README to document system noise filters and audit event exclusion
 
 ### Fixed
 

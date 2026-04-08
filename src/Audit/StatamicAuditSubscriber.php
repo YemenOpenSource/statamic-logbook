@@ -3,6 +3,7 @@
 namespace EmranAlhaddad\StatamicLogbook\Audit;
 
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\File;
 use Statamic\Entries\Entry;
 
 class StatamicAuditSubscriber
@@ -19,10 +20,12 @@ class StatamicAuditSubscriber
     {
         if (!config('logbook.audit_logs.enabled', true)) return;
 
-        $events = (array) config('logbook.audit_logs.events', []);
+        $events = $this->discoverEvents();
+        $excluded = array_values(array_filter((array) config('logbook.audit_logs.exclude_events', []), fn($e) => is_string($e) && $e !== ''));
+        $excludedMap = array_fill_keys($excluded, true);
 
         foreach ($events as $eventClass) {
-            if (!is_string($eventClass) || !class_exists($eventClass)) {
+            if (!is_string($eventClass) || !class_exists($eventClass) || isset($excludedMap[$eventClass])) {
                 continue;
             }
 
@@ -30,6 +33,33 @@ class StatamicAuditSubscriber
                 $this->handle($eventClass, $event);
             });
         }
+    }
+
+    /**
+     * Discover Statamic event classes automatically.
+     * Falls back to configured allow-list when discovery is unavailable.
+     *
+     * @return array<int, string>
+     */
+    private function discoverEvents(): array
+    {
+        $vendorEventsDir = base_path('vendor/statamic/cms/src/Events');
+        $events = [];
+
+        if (is_dir($vendorEventsDir)) {
+            foreach (File::glob($vendorEventsDir . '/*.php') as $file) {
+                $class = 'Statamic\\Events\\' . pathinfo($file, PATHINFO_FILENAME);
+                if (class_exists($class)) {
+                    $events[] = $class;
+                }
+            }
+        }
+
+        if (empty($events)) {
+            $events = (array) config('logbook.audit_logs.events', []);
+        }
+
+        return array_values(array_unique($events));
     }
 
     private function handle(string $eventClass, object $event): void
