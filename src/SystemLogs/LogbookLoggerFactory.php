@@ -10,7 +10,11 @@ class LogbookLoggerFactory
     public function __invoke(array $config): Logger
     {
         $levelName = $config['level'] ?? 'debug';
-        $level = Level::fromName($levelName);
+        try {
+            $level = Level::fromName($levelName);
+        } catch (\Throwable $e) {
+            $level = Level::Debug;
+        }
 
         $handler = new DbSystemLogHandler(
             level: $level,

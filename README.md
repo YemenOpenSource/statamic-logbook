@@ -19,6 +19,7 @@ All directly inside the **Statamic Control Panel**, with filtering, analytics, a
 - Captures request context (URL, method, IP, user)
 - Filter by date, level, and message
 - CSV export
+- Works automatically after install (no `logging.php` wiring required)
 
 ### Audit Logs
 
@@ -110,8 +111,6 @@ config/logbook.php
 
 Environment variables are used only for sensitive or environment-specific values.
 
----
-
 ## 🧠 Audit Configuration
 
 ### Ignore noisy or irrelevant fields
@@ -127,6 +126,19 @@ LOGBOOK_AUDIT_MAX_VALUE_LENGTH=2000
 ```
 
 Large values are automatically truncated to protect performance and storage.
+
+---
+
+## ✅ Quick Verification
+
+After installation:
+
+1. Run `php artisan logbook:install`
+2. Trigger a log, for example in Tinker:
+   ```php
+   \Log::info('logbook system test', ['source' => 'manual-check']);
+   ```
+3. Open Logbook in CP and confirm the row appears under **System Logs**
 
 ---
 

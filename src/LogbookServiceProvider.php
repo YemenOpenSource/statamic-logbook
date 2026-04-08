@@ -3,6 +3,9 @@
 namespace EmranAlhaddad\StatamicLogbook;
 
 use Illuminate\Support\Facades\Router;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Log\Events\MessageLogged;
+use Monolog\Level;
 use Statamic\Facades\Utility;
 use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
@@ -14,10 +17,12 @@ use EmranAlhaddad\StatamicLogbook\Http\Middleware\LogbookRequestContext;
 use EmranAlhaddad\StatamicLogbook\Audit\AuditRecorder;
 use EmranAlhaddad\StatamicLogbook\Audit\ChangeDetector;
 use EmranAlhaddad\StatamicLogbook\Audit\StatamicAuditSubscriber;
+use EmranAlhaddad\StatamicLogbook\SystemLogs\DbSystemLogHandler;
 
 class LogbookServiceProvider extends AddonServiceProvider
 {
     protected static bool $booted = false;
+    protected static bool $systemLogsHooked = false;
 
     public function register(): void
     {
@@ -69,8 +74,66 @@ class LogbookServiceProvider extends AddonServiceProvider
             ))->subscribe();
         }
 
+        $this->registerSystemLogs();
         $this->registerPermissions();
         $this->bootCpUtility();
+    }
+
+    protected function registerSystemLogs(): void
+    {
+        if (self::$systemLogsHooked || !config('logbook.system_logs.enabled', true)) {
+            return;
+        }
+
+        self::$systemLogsHooked = true;
+
+        $levelName = (string) config('logbook.system_logs.level', 'debug');
+        $bubble = (bool) config('logbook.system_logs.bubble', true);
+
+        try {
+            $level = Level::fromName($levelName);
+        } catch (\Throwable $e) {
+            $level = Level::Debug;
+        }
+
+        Event::listen(MessageLogged::class, function (MessageLogged $event) use ($level, $bubble) {
+            if ($this->shouldSkipSystemLogEvent($event)) {
+                return;
+            }
+
+            $handler = new DbSystemLogHandler(
+                level: $level,
+                bubble: $bubble,
+                channel: $event->channel ?? 'logbook'
+            );
+
+            $handler->recordMessage(
+                level: (string) $event->level,
+                message: (string) $event->message,
+                context: is_array($event->context) ? $event->context : []
+            );
+        });
+    }
+
+    protected function shouldSkipSystemLogEvent(MessageLogged $event): bool
+    {
+        $channel = (string) ($event->channel ?? '');
+        $message = (string) $event->message;
+
+        $ignoredChannels = array_map('strtolower', (array) config('logbook.system_logs.ignore_channels', [
+            'deprecations',
+        ]));
+        if ($channel !== '' && in_array(strtolower($channel), $ignoredChannels, true)) {
+            return true;
+        }
+
+        foreach ((array) config('logbook.system_logs.ignore_message_contains', []) as $needle) {
+            if (is_string($needle) && $needle !== '' && str_contains($message, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function registerPermissions(): void

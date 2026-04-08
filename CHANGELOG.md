@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+* Automatic system log capture without manual `logging.php` wiring
+* Runtime listener for Laravel `MessageLogged` events to write into Logbook DB
+
+### Changed
+
+* Improved system log handler resilience to avoid app failures when log DB is unavailable
+* Added safer level parsing fallback in logger factory
+
+### Fixed
+
+* Reduced noisy framework/system messages from default system log capture
+
+---
+
 ## [1.0.1] – 2025-01-XX
 
 ### Added

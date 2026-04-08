@@ -22,52 +22,73 @@ class DbSystemLogHandler extends AbstractProcessingHandler
 
     protected function write(LogRecord $record): void
     {
-        $conn = DbConnectionResolver::resolve();
+        $this->persist(
+            level: strtolower($record->level->getName()),
+            message: (string) $record->message,
+            context: is_array($record->context ?? null) ? $record->context : [],
+            channel: $this->forcedChannel ?: $record->channel
+        );
+    }
 
-        $request = function_exists('request') ? request() : null;
-        $userId = function_exists('auth') ? optional(auth()->user())->id : null;
-        $userId = $userId ? (string) $userId : null;
-        $ip = null;
-        $method = null;
-        $url = null;
-        $userAgent = null;
+    public function recordMessage(string $level, string $message, array $context = []): void
+    {
+        $this->persist(
+            level: strtolower($level),
+            message: $message,
+            context: $context,
+            channel: $this->forcedChannel ?: 'logbook'
+        );
+    }
 
-        if ($request) {
-            try {
-                $ip = $request->ip();
-                $method = $request->method();
-                $url = $request->fullUrl();
-                $userAgent = (string) $request->userAgent();
-            } catch (\Throwable $e) {
-                // ignore request parsing failures
+    private function persist(string $level, string $message, array $context, ?string $channel): void
+    {
+        try {
+            $conn = DbConnectionResolver::resolve();
+
+            $request = function_exists('request') ? request() : null;
+            $userId = function_exists('auth') ? optional(auth()->user())->id : null;
+            $userId = $userId ? (string) $userId : null;
+            $ip = null;
+            $method = null;
+            $url = null;
+            $userAgent = null;
+
+            if ($request) {
+                try {
+                    $ip = $request->ip();
+                    $method = $request->method();
+                    $url = $request->fullUrl();
+                    $userAgent = (string) $request->userAgent();
+                } catch (\Throwable $e) {
+                    // ignore request parsing failures
+                }
             }
+
+            $requestId = null;
+            if ($request) {
+                $requestId = $request->attributes->get('logbook_request_id')
+                    ?? $request->headers->get('X-Request-Id');
+            }
+
+            $ctx = Sanitizer::maskArray(is_array($context) ? $context : []);
+
+            DB::connection($conn)->table('logbook_system_logs')->insert([
+                'level'      => $level,
+                'message'    => $message,
+                'context'    => !empty($ctx)
+                    ? json_encode($ctx, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : null,
+                'channel'    => $channel,
+                'request_id' => $requestId,
+                'user_id'    => $userId,
+                'ip'         => $ip,
+                'method'     => $method,
+                'url'        => $url,
+                'user_agent' => $userAgent ?: null,
+                'created_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Never break the app because a logging sink failed.
         }
-
-        $requestId = null;
-        if ($request) {
-            $requestId = $request->attributes->get('logbook_request_id')
-                ?? $request->headers->get('X-Request-Id');
-        }
-
-
-        $ctx = $record->context ?? [];
-        $ctx = is_array($ctx) ? $ctx : [];
-        $ctx = Sanitizer::maskArray($ctx);
-
-        DB::connection($conn)->table('logbook_system_logs')->insert([
-            'level'      => strtolower($record->level->getName()),
-            'message'    => (string) $record->message,
-            'context'    => !empty($ctx)
-                ? json_encode($ctx, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-                : null,
-            'channel'    => $this->forcedChannel ?: $record->channel,
-            'request_id' => $requestId,
-            'user_id'    => $userId,
-            'ip'         => $ip,
-            'method'     => $method,
-            'url'        => $url,
-            'user_agent' => $userAgent ?: null,
-            'created_at' => now(),
-        ]);
     }
 }
