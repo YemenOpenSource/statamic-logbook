@@ -53,6 +53,12 @@ class FlushSpoolCommand extends Command
                 $totalInserted += $result['inserted'];
                 if (! $result['ok']) {
                     $failedFiles++;
+                    if (! empty($result['failed_path'])) {
+                        $this->warn('• Failed spool file moved to: '.$result['failed_path']);
+                    }
+                    if (! empty($result['error'])) {
+                        $this->error('• Flush error: '.$result['error']);
+                    }
                 }
             }
         }
@@ -75,13 +81,13 @@ class FlushSpoolCommand extends Command
     }
 
     /**
-     * @return array{ok: bool, read: int, inserted: int}
+     * @return array{ok: bool, read: int, inserted: int, failed_path?: string, error?: string}
      */
     private function flushFile(string $conn, string $type, string $path, int $limit, bool $dryRun): array
     {
         $processingPath = $path.'.processing';
         if (! @rename($path, $processingPath)) {
-            return ['ok' => false, 'read' => 0, 'inserted' => 0];
+            return ['ok' => false, 'read' => 0, 'inserted' => 0, 'error' => 'Unable to lock spool file for processing'];
         }
 
         $rows = [];
@@ -92,7 +98,7 @@ class FlushSpoolCommand extends Command
         try {
             $handle = @fopen($processingPath, 'rb');
             if ($handle === false) {
-                return ['ok' => false, 'read' => 0, 'inserted' => 0];
+                return ['ok' => false, 'read' => 0, 'inserted' => 0, 'error' => 'Unable to open processing spool file'];
             }
 
             try {
@@ -145,6 +151,13 @@ class FlushSpoolCommand extends Command
             }
             $failedPath = $failedDir.DIRECTORY_SEPARATOR.basename($processingPath).'.'.date('YmdHis').'.failed';
             @rename($processingPath, $failedPath);
+            return [
+                'ok' => false,
+                'read' => $read,
+                'inserted' => $inserted,
+                'failed_path' => $failedPath,
+                'error' => $e->getMessage(),
+            ];
         }
 
         return ['ok' => $ok, 'read' => $read, 'inserted' => $inserted];
