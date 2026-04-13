@@ -27,8 +27,9 @@ class AuditRecorder
             ];
 
             if (LogSpool::enabled()) {
-                LogSpool::enqueueAudit($row);
-                return;
+                if (LogSpool::enqueueAudit($row)) {
+                    return;
+                }
             }
 
             $conn = DbConnectionResolver::resolve();

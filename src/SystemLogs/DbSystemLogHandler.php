@@ -89,8 +89,9 @@ class DbSystemLogHandler extends AbstractProcessingHandler
             ];
 
             if (LogSpool::enabled()) {
-                LogSpool::enqueueSystem($row);
-                return;
+                if (LogSpool::enqueueSystem($row)) {
+                    return;
+                }
             }
 
             DB::connection($conn)->table('logbook_system_logs')->insert([

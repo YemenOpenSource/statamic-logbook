@@ -74,7 +74,16 @@ class LogSpool
     public static function spoolBasePath(): string
     {
         $default = storage_path('app/logbook/spool');
-        return rtrim((string) config('logbook.ingest.spool_path', $default), DIRECTORY_SEPARATOR);
+        $path = (string) config('logbook.ingest.spool_path', $default);
+        if ($path === '') {
+            $path = $default;
+        }
+
+        if (! self::isAbsolutePath($path)) {
+            $path = base_path($path);
+        }
+
+        return rtrim($path, DIRECTORY_SEPARATOR);
     }
 
     public static function typeDir(string $type): string
@@ -168,5 +177,12 @@ class LogSpool
 
         usort($out, fn (array $a, array $b) => $a['mtime'] <=> $b['mtime']);
         return $out;
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, DIRECTORY_SEPARATOR)
+            || preg_match('/^[A-Za-z]:\\\\/', $path) === 1
+            || str_starts_with($path, '\\\\');
     }
 }
