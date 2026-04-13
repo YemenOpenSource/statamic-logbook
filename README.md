@@ -112,6 +112,16 @@ config/logbook.php
 
 Environment variables are used only for sensitive or environment-specific values.
 
+## 🏷 Version & Tags
+
+Current known tags:
+
+- `v1.2.0`
+- `v1.1.0`
+- `v1.0.0`
+
+Recent post-`v1.2.0` work is currently documented under `CHANGELOG.md` in `Unreleased`.
+
 ## 🧩 Complete `.env` Reference (all `LOGBOOK_*` vars)
 
 Use this block as a complete starter template:
@@ -154,6 +164,37 @@ LOGBOOK_SPOOL_BACKPRESSURE=drop_oldest
 ```
 
 ### Variable-by-variable explanation
+
+### Required vs optional env vars
+
+Required for production operation:
+
+- `LOGBOOK_DB_CONNECTION`
+- `LOGBOOK_DB_HOST`
+- `LOGBOOK_DB_PORT`
+- `LOGBOOK_DB_DATABASE`
+- `LOGBOOK_DB_USERNAME`
+- `LOGBOOK_DB_PASSWORD`
+
+Optional (with safe defaults):
+
+- `LOGBOOK_DB_SOCKET`
+- `LOGBOOK_DB_CHARSET`
+- `LOGBOOK_DB_COLLATION`
+- `LOGBOOK_SYSTEM_LOGS_ENABLED`
+- `LOGBOOK_SYSTEM_LOGS_LEVEL`
+- `LOGBOOK_SYSTEM_LOGS_BUBBLE`
+- `LOGBOOK_SYSTEM_LOGS_IGNORE_CHANNELS`
+- `LOGBOOK_SYSTEM_LOGS_IGNORE_MESSAGES`
+- `LOGBOOK_AUDIT_DISCOVER_EVENTS`
+- `LOGBOOK_AUDIT_EXCLUDE_EVENTS`
+- `LOGBOOK_AUDIT_IGNORE_FIELDS`
+- `LOGBOOK_AUDIT_MAX_VALUE_LENGTH`
+- `LOGBOOK_RETENTION_DAYS`
+- `LOGBOOK_INGEST_MODE`
+- `LOGBOOK_SPOOL_PATH`
+- `LOGBOOK_SPOOL_MAX_MB`
+- `LOGBOOK_SPOOL_BACKPRESSURE`
 
 #### Database (required for addon to work)
 
@@ -303,6 +344,44 @@ Recommended scheduler example:
 ```php
 $schedule->command('logbook:flush-spool --type=all --limit=1000')->everyFiveMinutes();
 ```
+
+### How spool mode works (end-to-end)
+
+1. Request lifecycle captures system/audit events as usual.
+2. In `spool` mode, Logbook writes NDJSON records to local spool files.
+3. Scheduler runs `logbook:flush-spool` in the background.
+4. Command reads spool files in batches and inserts rows to DB.
+5. On success, spool segment is removed.
+6. On failure, segment is moved to `storage/app/logbook/spool/failed/...` and error is printed.
+
+### OS cron setup (required for background execution)
+
+Laravel scheduler needs one cron entry on the host:
+
+```bash
+* * * * * cd /absolute/path/to/your-laravel-app && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Then register the Logbook flush in your app scheduler:
+
+```php
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('logbook:flush-spool --type=all --limit=1000')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+```
+
+### Troubleshooting spool mode
+
+- If files are not created in spool mode:
+  - run `php artisan config:clear`
+  - verify `LOGBOOK_INGEST_MODE=spool`
+  - verify `LOGBOOK_SPOOL_PATH` is writable by PHP-FPM user.
+- If flush reports failures:
+  - inspect printed `Flush error:` line
+  - inspect files under `storage/app/logbook/spool/failed/`
+  - requeue failed files and run flush again after fix.
 
 ---
 

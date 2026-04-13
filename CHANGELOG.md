@@ -9,25 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+* Optional local spool ingestion mode for logs with no external queue dependency.
+* `logbook:flush-spool` command for scheduled batched spool-to-DB ingestion.
+* Spool operational reporting (queued files/bytes and failed files before/after flush).
+* PHPUnit harness and targeted regression tests for audit defaults/action normalization and pulse listener guard.
+
 ### Changed
 
 * Switched audit defaults to curated high-signal events, with optional discovery via `LOGBOOK_AUDIT_DISCOVER_EVENTS`.
 * Normalized audit action naming for non-entry subjects to operation-oriented actions (`created|updated|deleted|event`).
 * Added optional spool-first ingestion mode (`LOGBOOK_INGEST_MODE=spool`) to avoid request-time remote DB writes.
+* Reduced trends dashboard query fan-out via grouped aggregate queries.
 
 ### Fixed
 
 * Isolated audit persistence failures so audit DB issues do not break application requests.
 * Prevented stale entry snapshot buildup by clearing cached pre-save state after consume.
 * Made pulse filter binding idempotent to avoid duplicate listeners in repeated widget mounts.
+* Surfaced flush failure paths and exception messages directly in CLI output.
+* Normalized spool `created_at` values (including ISO8601) before DB insert.
+* Prevented silent event drops by falling back to direct DB insert when spool enqueue fails.
 
 ### Removed
 
 * Removed unused `LogbookLoggerFactory` legacy class.
-
-### Added
-
-* New `logbook:flush-spool` command to batch flush local spool files into DB.
 
 ---
 
