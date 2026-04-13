@@ -35,7 +35,8 @@ All directly inside the **Statamic Control Panel**, with filtering, analytics, a
 - Native Statamic CP UI
 - Fast filtering & pagination
 - Modal previews for context & changes
-- No frontend frameworks or dependencies
+- Dashboard widgets for overview, trends, and live pulse
+- Uses Statamic CP classes directly (no frontend build pipeline)
 
 ---
 
@@ -163,6 +164,10 @@ After installation:
    \Log::info('logbook system test', ['source' => 'manual-check']);
    ```
 3. Open Logbook in CP and confirm the row appears under **System Logs**
+4. Add the Logbook widgets to your dashboard and verify:
+   - **Overview** shows 24h system/error/audit totals
+   - **Volume by day** renders stacked bars
+   - **Live feed** filters correctly using All / Errors / System / Audit
 
 ---
 
@@ -233,3 +238,11 @@ GitHub: [https://github.com/emran-alhaddad](https://github.com/emran-alhaddad)
 ## 🧾 Changelog
 
 See [`CHANGELOG.md`](CHANGELOG.md) for release history.
+
+## 🚀 Release Notes (latest)
+
+### v1.2.0
+
+- Added three CP dashboard widgets: overview cards, daily trends, and live pulse feed.
+- Moved widget styling to native Statamic CP utility/component classes.
+- Removed dependency on external frontend asset builds for widget UI.

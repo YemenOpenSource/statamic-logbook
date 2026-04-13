@@ -11,6 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.0] – 2026-04-13
+
+### Added
+
+* Dashboard widgets for:
+  * 24h health overview cards
+  * Daily stacked trends (system/error/audit)
+  * Live pulse feed with in-widget filters
+* Shared dashboard data service to power widget queries consistently
+* Dedicated widgets registration for Stats/Trends/Pulse in provider boot
+
+### Changed
+
+* Replaced legacy single stats widget view with richer cards/trends/pulse widget set
+* Updated widget templates to rely on native Statamic CP classes (Tailwind + CP components)
+* Removed external frontend build dependency for widget styling/assets
+
+### Fixed
+
+* Widget registration/bootstrap compatibility by merging Statamic widget bindings at runtime
+* Live pulse feed filtering behavior in Control Panel dashboard context
+
+---
+
 ## [1.1.0] – 2026-04-08
 
 ### Added
