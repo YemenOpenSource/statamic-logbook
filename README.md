@@ -1,5 +1,10 @@
 Statamic Logbook
 
+[![Latest Release](https://img.shields.io/github/v/release/emran-alhaddad/statamic-logbook?sort=semver)](https://github.com/emran-alhaddad/statamic-logbook/releases)
+[![License](https://img.shields.io/github/license/emran-alhaddad/statamic-logbook)](LICENSE)
+[![Open Issues](https://img.shields.io/github/issues/emran-alhaddad/statamic-logbook)](https://github.com/emran-alhaddad/statamic-logbook/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/emran-alhaddad/statamic-logbook)](https://github.com/emran-alhaddad/statamic-logbook/commits/master)
+
 A production-ready logging and audit trail addon for Statamic.
 
 Statamic Logbook provides a centralized place to review:
@@ -32,6 +37,24 @@ All inside the Statamic Control Panel, with filtering, analytics, and CSV export
 - Native Statamic CP styling/components
 - Dashboard widgets (overview, trends, live pulse)
 - Utility views with filtering and CSV export
+- Widget set includes:
+  - Logbook Overview (24h health cards)
+  - Logbook Trends (daily stacked volume)
+  - Logbook Pulse (live mixed feed + quick filters)
+
+### Widget preview
+
+#### Overview cards
+
+![Logbook Overview Cards](docs/images/widgets/widget-overview-cards.png)
+
+#### Trends
+
+![Logbook Trends Volume](docs/images/widgets/widget-trends-volume.png)
+
+#### Live pulse
+
+![Logbook Live Pulse](docs/images/widgets/widget-live-pulse.png)
 
 ---
 
@@ -256,6 +279,22 @@ Short cron example:
    ```
 5. If in spool mode, run `php artisan logbook:flush-spool --type=all`.
 6. Confirm rows appear in CP (System Logs / Audit Logs).
+
+---
+
+## Test Coverage
+
+This repository includes a lightweight PHPUnit suite focused on regression checks for critical behavior:
+
+- Audit action normalization mapping
+- Curated audit default mode (`discover_events=false`)
+- Pulse widget filter listener singleton guard
+
+Run tests:
+
+```bash
+./vendor/bin/phpunit --configuration phpunit.xml
+```
 
 ---
 

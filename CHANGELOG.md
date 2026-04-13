@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * `logbook:flush-spool` command for scheduled batched spool-to-DB ingestion.
 * Spool operational reporting (queued files/bytes and failed files before/after flush).
 * PHPUnit harness and targeted regression tests for audit defaults/action normalization and pulse listener guard.
+* CP dashboard widget suite for overview cards, trends, and live pulse feed.
 
 ### Changed
 
