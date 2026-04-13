@@ -17,9 +17,17 @@
     "illuminate/database": "^9.0|^10.0|^11.0|^12.0",
     "monolog/monolog": "^3.0"
   },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5"
+  },
   "autoload": {
     "psr-4": {
       "EmranAlhaddad\\StatamicLogbook\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "EmranAlhaddad\\StatamicLogbook\\Tests\\": "tests/"
     }
   },
   "extra": {
@@ -30,5 +38,10 @@
     }
   },
   "minimum-stability": "stable",
-  "prefer-stable": true
+  "prefer-stable": true,
+  "config": {
+    "allow-plugins": {
+      "pixelfear/composer-dist-plugin": true
+    }
+  }
 }
