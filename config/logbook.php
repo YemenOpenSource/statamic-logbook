@@ -40,25 +40,21 @@ return [
         // Curated high-signal mutation events (default allow-list).
         'events' => [
             // Entries
-            \Statamic\Events\EntryCreated::class,
             \Statamic\Events\EntryDeleted::class,
             \Statamic\Events\EntrySaved::class,
-            \Statamic\Events\EntrySaving::class,
-
+            
             // Taxonomy / terms
             \Statamic\Events\TaxonomyDeleted::class,
             \Statamic\Events\TaxonomySaved::class,
             \Statamic\Events\TermDeleted::class,
             \Statamic\Events\TermSaved::class,
 
+
             // Global content / navigation
             \Statamic\Events\GlobalSetDeleted::class,
             \Statamic\Events\GlobalSetSaved::class,
-            \Statamic\Events\GlobalVariablesDeleted::class,
-            \Statamic\Events\GlobalVariablesSaved::class,
             \Statamic\Events\NavDeleted::class,
             \Statamic\Events\NavSaved::class,
-            \Statamic\Events\NavTreeSaved::class,
 
             // User/security actions
             \Statamic\Events\ImpersonationStarted::class,
@@ -75,6 +71,11 @@ return [
         // Block-list: events you do NOT want to audit.
         'exclude_events' => array_values(array_unique(array_merge([
             // Keep excluded (high-noise / low-audit value):
+            \Statamic\Events\EntryCreated::class,
+            \Statamic\Events\EntrySaving::class,
+            \Statamic\Events\GlobalVariablesDeleted::class,
+            \Statamic\Events\GlobalVariablesSaved::class,
+            \Statamic\Events\NavTreeSaved::class,
             \Statamic\Events\AssetContainerBlueprintFound::class,
             \Statamic\Events\EntryBlueprintFound::class,
             \Statamic\Events\FormBlueprintFound::class,
