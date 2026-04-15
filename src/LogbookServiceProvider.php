@@ -2,7 +2,7 @@
 
 namespace EmranAlhaddad\StatamicLogbook;
 
-use Illuminate\Support\Facades\Router;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Log\Events\MessageLogged;
 use Monolog\Level;
@@ -127,13 +127,11 @@ class LogbookServiceProvider extends AddonServiceProvider
             __DIR__ . '/../config/logbook.php' => config_path('logbook.php'),
         ], 'logbook-config');
 
-        if ($this->app->runningInConsole()) {
-            $this->commands([
-                InstallCommand::class,
-                PruneCommand::class,
-                FlushSpoolCommand::class,
-            ]);
-        }
+        $this->commands([
+            InstallCommand::class,
+            PruneCommand::class,
+            FlushSpoolCommand::class,
+        ]);
 
         $this->registerCpMiddleware();
 
@@ -217,7 +215,7 @@ class LogbookServiceProvider extends AddonServiceProvider
         if (!class_exists(LogbookRequestContext::class)) return;
 
         try {
-            Router::pushMiddlewareToGroup('statamic.cp', LogbookRequestContext::class);
+            Route::pushMiddlewareToGroup('statamic.cp', LogbookRequestContext::class);
         } catch (\Throwable $e) {
         }
     }
@@ -247,6 +245,14 @@ class LogbookServiceProvider extends AddonServiceProvider
                     $router->get('/audit/export.csv', [LogbookUtilityController::class, 'exportAuditCsv'])
                         ->name('audit.export')
                         ->middleware('can:export logbook');
+
+                    $router->post('/actions/prune', [LogbookUtilityController::class, 'runPrune'])
+                        ->name('actions.prune')
+                        ->middleware('can:view logbook');
+
+                    $router->post('/actions/flush-spool', [LogbookUtilityController::class, 'runFlushSpool'])
+                        ->name('actions.flush-spool')
+                        ->middleware('can:view logbook');
                 });
         });
     }

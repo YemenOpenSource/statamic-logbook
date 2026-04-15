@@ -2,10 +2,13 @@
 
 namespace EmranAlhaddad\StatamicLogbook\Http\Controllers;
 
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use EmranAlhaddad\StatamicLogbook\Support\DbConnectionResolver;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 class LogbookUtilityController
 {
@@ -236,6 +239,49 @@ class LogbookUtilityController
 
             fclose($out);
         }, 200, $headers);
+    }
+
+    public function runPrune(Request $request): JsonResponse
+    {
+        return $this->runCommand('logbook:prune');
+    }
+
+    public function runFlushSpool(Request $request): JsonResponse
+    {
+        return $this->runCommand('logbook:flush-spool');
+    }
+
+    protected function runCommand(string $command): JsonResponse
+    {
+        try {
+            $exitCode = Artisan::call($command);
+            $output = trim((string) Artisan::output());
+
+            if ($exitCode === 0) {
+                return response()->json([
+                    'ok' => true,
+                    'message' => 'Command completed successfully.',
+                    'command' => $command,
+                    'exit_code' => $exitCode,
+                    'output' => $output,
+                ]);
+            }
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Command failed.',
+                'command' => $command,
+                'exit_code' => $exitCode,
+                'output' => $output,
+            ], 500);
+        } catch (Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage(),
+                'command' => $command,
+                'output' => '',
+            ], 500);
+        }
     }
 
     protected function systemStats(string $conn): array

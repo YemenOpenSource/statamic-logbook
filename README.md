@@ -274,6 +274,19 @@ Short cron example:
 - Prune old rows: `php artisan logbook:prune`
 - Flush spool: `php artisan logbook:flush-spool`
 
+### Run maintenance from Control Panel
+
+From `Utilities -> Logbook`, use the header action buttons:
+
+- `Prune Logs`: executes `php artisan logbook:prune`
+- `Flush Spool`: executes `php artisan logbook:flush-spool`
+
+Each action shows a CP toast status lifecycle:
+
+- `in-progress` when started
+- `done` on success
+- `failed` on command/transport error
+
 ---
 
 ## Quick Verification
@@ -341,7 +354,9 @@ Run tests:
 
 Known tags:
 
-- `v1.3.0` (current)
+- `v1.4.0` (current)
+- `v1.3.1`
+- `v1.3.0`
 - `v1.2.0`
 - `v1.1.0`
 - `v1.0.0`
@@ -350,8 +365,8 @@ Recent changes after `v1.2.0` are documented under `CHANGELOG.md` -> `Unreleased
 
 ### Current release
 
-- Current release: `v1.3.0`
-- Focus: audit quality hardening, spool-first ingestion option, flush diagnostics, and reliability fixes.
+- Current release: `v1.4.0`
+- Focus: CP maintenance CTAs for prune/flush commands with toast feedback, plus command registration hardening for CP-triggered execution.
 
 ---
 

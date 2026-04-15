@@ -11,11 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+* (none)
+
+### Changed
+
+* (none)
+
+### Fixed
+
+* (none)
+
+---
+
+## [1.4.0] – 2026-04-15
+
+### Added
+
 * Optional local spool ingestion mode for logs with no external queue dependency.
 * `logbook:flush-spool` command for scheduled batched spool-to-DB ingestion.
 * Spool operational reporting (queued files/bytes and failed files before/after flush).
 * PHPUnit harness and targeted regression tests for audit defaults/action normalization and pulse listener guard.
 * CP dashboard widget suite for overview cards, trends, and live pulse feed.
+* CP action endpoints and header CTAs to run `logbook:prune` and `logbook:flush-spool` directly from Logbook utility.
 
 ### Changed
 
@@ -23,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * Normalized audit action naming for non-entry subjects to operation-oriented actions (`created|updated|deleted|event`).
 * Added optional spool-first ingestion mode (`LOGBOOK_INGEST_MODE=spool`) to avoid request-time remote DB writes.
 * Reduced trends dashboard query fan-out via grouped aggregate queries.
+* Registered Logbook Artisan commands for web-invoked `Artisan::call(...)` usage from CP actions.
 
 ### Fixed
 
@@ -32,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * Surfaced flush failure paths and exception messages directly in CLI output.
 * Normalized spool `created_at` values (including ISO8601) before DB insert.
 * Prevented silent event drops by falling back to direct DB insert when spool enqueue fails.
+* Fixed command availability error in CP-triggered execution (`The command "logbook:flush-spool" does not exist.`).
 
 ### Removed
 

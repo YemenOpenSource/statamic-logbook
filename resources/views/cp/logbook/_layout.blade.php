@@ -38,8 +38,26 @@
         System logs & user audit logs
       </div>
     </div>
-
-    {{-- optional: put global actions later --}}
+    <div class="flex items-center gap-2">
+      <button
+        class="btn"
+        type="button"
+        data-command-key="prune"
+        data-command-url="{{ cp_route('utilities.logbook.actions.prune') }}"
+        data-command-label="Prune"
+        onclick="__logbookRunCommand(event)">
+        Prune Logs
+      </button>
+      <button
+        class="btn"
+        type="button"
+        data-command-key="flush-spool"
+        data-command-url="{{ cp_route('utilities.logbook.actions.flush-spool') }}"
+        data-command-label="Flush Spool"
+        onclick="__logbookRunCommand(event)">
+        Flush Spool
+      </button>
+    </div>
   </div>
 </div>
 
@@ -87,6 +105,83 @@
 
 @section('scripts')
 <script>
+  const __logbookCommandState = {
+    running: {}
+  };
+
+  function __logbookToast(type, text) {
+    const fallback = function () {
+      if (type === 'error') {
+        alert(text);
+      } else {
+        console.log(text);
+      }
+    };
+
+    if (window.Statamic && typeof window.Statamic.$toast === 'object') {
+      const toast = window.Statamic.$toast;
+      if (type === 'success' && typeof toast.success === 'function') return toast.success(text);
+      if (type === 'error' && typeof toast.error === 'function') return toast.error(text);
+      if (typeof toast.info === 'function') return toast.info(text);
+      if (typeof toast.show === 'function') return toast.show(text);
+    }
+
+    if (window.$toast && typeof window.$toast === 'object') {
+      const toast = window.$toast;
+      if (type === 'success' && typeof toast.success === 'function') return toast.success(text);
+      if (type === 'error' && typeof toast.error === 'function') return toast.error(text);
+      if (typeof toast.info === 'function') return toast.info(text);
+    }
+
+    fallback();
+  }
+
+  async function __logbookRunCommand(event) {
+    const button = event.currentTarget;
+    const url = button.dataset.commandUrl;
+    const commandKey = button.dataset.commandKey || '';
+    const commandLabel = button.dataset.commandLabel || 'Command';
+    const originalText = button.textContent;
+
+    if (!url || __logbookCommandState.running[commandKey]) {
+      return;
+    }
+
+    __logbookCommandState.running[commandKey] = true;
+    button.disabled = true;
+    button.textContent = `${commandLabel}...`;
+    __logbookToast('info', `${commandLabel}: in-progress`);
+
+    try {
+      const csrfTokenTag = document.querySelector('meta[name="csrf-token"]');
+      const csrfToken = csrfTokenTag ? csrfTokenTag.getAttribute('content') : '';
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+        },
+        body: '{}',
+      });
+
+      const data = await response.json().catch(function () { return {}; });
+      if (response.ok && data.ok) {
+        __logbookToast('success', `${commandLabel}: done`);
+      } else {
+        const message = data && data.message ? data.message : 'Unknown error';
+        __logbookToast('error', `${commandLabel}: failed (${message})`);
+      }
+    } catch (error) {
+      __logbookToast('error', `${commandLabel}: failed (${error && error.message ? error.message : 'Request error'})`);
+    } finally {
+      __logbookCommandState.running[commandKey] = false;
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+
   // Unicode-safe base64 decode
   function __logbookDecodeBase64Unicode(b64) {
     if (!b64) return '';
