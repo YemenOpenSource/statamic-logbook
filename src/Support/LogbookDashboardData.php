@@ -14,13 +14,35 @@ class LogbookDashboardData
     protected static array $errorLevels = ['emergency', 'alert', 'critical', 'error'];
 
     /**
-     * @return array{systemTotal24h: int, systemErrors24h: int, auditTotal24h: int, topAction7d: object|null, errorRatio: float, userActivity: list<array{user_id: string, email: string|null, last_at: Carbon, actions: int}>}
+     * Dashboard summary — counts, 24h hourly sparkline series, and
+     * period-over-period deltas (current 24h vs previous 24h).
+     *
+     * @return array{
+     *     systemTotal24h: int,
+     *     systemErrors24h: int,
+     *     auditTotal24h: int,
+     *     topAction7d: object|null,
+     *     errorRatio: float,
+     *     userActivity: list<array{user_id: string, email: string|null, last_at: Carbon, actions: int}>,
+     *     systemTotal24hPrev: int,
+     *     systemErrors24hPrev: int,
+     *     auditTotal24hPrev: int,
+     *     systemSpark24h: list<int>,
+     *     errorSpark24h: list<int>,
+     *     auditSpark24h: list<int>,
+     *     systemDelta: array{value: int, pct: float|null, direction: string},
+     *     errorDelta: array{value: int, pct: float|null, direction: string},
+     *     auditDelta: array{value: int, pct: float|null, direction: string},
+     * }
      */
     public static function summary(string $conn): array
     {
-        $since24h = now()->subHours(24);
-        $since7d = now()->subDays(7);
+        $now = now();
+        $since24h = $now->copy()->subHours(24);
+        $prev48h = $now->copy()->subHours(48);
+        $since7d = $now->copy()->subDays(7);
 
+        // ---- current 24h counts ------------------------------------------------
         $systemTotal24h = (int) DB::connection($conn)
             ->table('logbook_system_logs')
             ->where('created_at', '>=', $since24h)
@@ -37,6 +59,27 @@ class LogbookDashboardData
             ->where('created_at', '>=', $since24h)
             ->count();
 
+        // ---- previous-window counts (24h..48h ago) -----------------------------
+        $systemTotal24hPrev = (int) DB::connection($conn)
+            ->table('logbook_system_logs')
+            ->where('created_at', '>=', $prev48h)
+            ->where('created_at', '<', $since24h)
+            ->count();
+
+        $systemErrors24hPrev = (int) DB::connection($conn)
+            ->table('logbook_system_logs')
+            ->where('created_at', '>=', $prev48h)
+            ->where('created_at', '<', $since24h)
+            ->whereIn('level', self::$errorLevels)
+            ->count();
+
+        $auditTotal24hPrev = (int) DB::connection($conn)
+            ->table('logbook_audit_logs')
+            ->where('created_at', '>=', $prev48h)
+            ->where('created_at', '<', $since24h)
+            ->count();
+
+        // ---- topAction over last 7d -------------------------------------------
         $topAction7d = DB::connection($conn)
             ->table('logbook_audit_logs')
             ->where('created_at', '>=', $since7d)
@@ -49,6 +92,44 @@ class LogbookDashboardData
             ? round(($systemErrors24h / $systemTotal24h) * 100, 1)
             : 0.0;
 
+        // ---- 24h hourly sparkline series --------------------------------------
+        $systemSpark24h = self::hourlyBuckets(
+            DB::connection($conn)
+                ->table('logbook_system_logs')
+                ->where('created_at', '>=', $since24h)
+                ->selectRaw(self::hourExpr($conn).' as h, COUNT(*) as c')
+                ->groupBy('h')
+                ->pluck('c', 'h')
+                ->all(),
+            $since24h,
+            24
+        );
+
+        $errorSpark24h = self::hourlyBuckets(
+            DB::connection($conn)
+                ->table('logbook_system_logs')
+                ->where('created_at', '>=', $since24h)
+                ->whereIn('level', self::$errorLevels)
+                ->selectRaw(self::hourExpr($conn).' as h, COUNT(*) as c')
+                ->groupBy('h')
+                ->pluck('c', 'h')
+                ->all(),
+            $since24h,
+            24
+        );
+
+        $auditSpark24h = self::hourlyBuckets(
+            DB::connection($conn)
+                ->table('logbook_audit_logs')
+                ->where('created_at', '>=', $since24h)
+                ->selectRaw(self::hourExpr($conn).' as h, COUNT(*) as c')
+                ->groupBy('h')
+                ->pluck('c', 'h')
+                ->all(),
+            $since24h,
+            24
+        );
+
         return [
             'systemTotal24h' => $systemTotal24h,
             'systemErrors24h' => $systemErrors24h,
@@ -56,6 +137,18 @@ class LogbookDashboardData
             'topAction7d' => $topAction7d,
             'errorRatio' => $errorRatio,
             'userActivity' => self::userAuditRollup($conn, 7, 6),
+
+            'systemTotal24hPrev' => $systemTotal24hPrev,
+            'systemErrors24hPrev' => $systemErrors24hPrev,
+            'auditTotal24hPrev' => $auditTotal24hPrev,
+
+            'systemSpark24h' => $systemSpark24h,
+            'errorSpark24h' => $errorSpark24h,
+            'auditSpark24h' => $auditSpark24h,
+
+            'systemDelta' => self::delta($systemTotal24h, $systemTotal24hPrev),
+            'errorDelta' => self::delta($systemErrors24h, $systemErrors24hPrev),
+            'auditDelta' => self::delta($auditTotal24h, $auditTotal24hPrev),
         ];
     }
 
@@ -101,7 +194,7 @@ class LogbookDashboardData
     /**
      * Last N calendar days: per-day counts for stacked / bar visuals.
      *
-     * @return list<array{date: string, label: string, system: int, errors: int, audit: int}>
+     * @return list<array{date: string, label: string, system: int, errors: int, audit: int, system_info: int}>
      */
     public static function dailyTrends(string $conn, int $days = 7): array
     {
@@ -219,6 +312,78 @@ class LogbookDashboardData
         usort($items, fn ($a, $b) => $b['at']->timestamp <=> $a['at']->timestamp);
 
         return array_slice($items, 0, $limit);
+    }
+
+    /**
+     * Compute a period-over-period delta.
+     *
+     * @return array{value: int, pct: float|null, direction: string}
+     */
+    public static function delta(int $current, int $previous): array
+    {
+        $value = $current - $previous;
+
+        if ($previous === 0) {
+            $pct = $current === 0 ? 0.0 : null; // "∞" / undefined when prior was 0 and current isn't
+        } else {
+            $pct = round((($current - $previous) / $previous) * 100, 1);
+        }
+
+        if ($value > 0) {
+            $direction = 'up';
+        } elseif ($value < 0) {
+            $direction = 'down';
+        } else {
+            $direction = 'flat';
+        }
+
+        return ['value' => $value, 'pct' => $pct, 'direction' => $direction];
+    }
+
+    /**
+     * Fill a fixed-size array of $hours buckets aligned to $from (oldest first),
+     * merging counts from a `hourKey => count` map returned by the DB.
+     *
+     * @param  array<string,int|string>  $counts
+     * @return list<int>
+     */
+    protected static function hourlyBuckets(array $counts, Carbon $from, int $hours): array
+    {
+        $out = array_fill(0, $hours, 0);
+        $start = $from->copy()->startOfHour();
+
+        for ($i = 0; $i < $hours; $i++) {
+            $slot = $start->copy()->addHours($i);
+            $key = $slot->format('Y-m-d H');
+            // Some DB drivers may return a string; normalize.
+            $match = null;
+            foreach ($counts as $k => $v) {
+                // Accept either 'Y-m-d H' (13 chars) or 'Y-m-d H:00:00' prefixed formats.
+                if ($k === $key || str_starts_with((string) $k, $key)) {
+                    $match = (int) $v;
+                    break;
+                }
+            }
+            $out[$i] = (int) ($match ?? 0);
+        }
+
+        return $out;
+    }
+
+    /**
+     * SQL expression that produces a bucket key of the form "YYYY-mm-dd HH"
+     * suitable for GROUP BY on the current DB driver. SQLite's `strftime`
+     * is used for tests; other drivers use `DATE_FORMAT`.
+     */
+    protected static function hourExpr(string $conn): string
+    {
+        $driver = config("database.connections.{$conn}.driver", 'mysql');
+
+        return match ($driver) {
+            'sqlite' => "strftime('%Y-%m-%d %H', created_at)",
+            'pgsql', 'postgres' => "to_char(created_at, 'YYYY-MM-DD HH24')",
+            default => "DATE_FORMAT(created_at, '%Y-%m-%d %H')",
+        };
     }
 
     protected static function truncate(string $text, int $max): string
