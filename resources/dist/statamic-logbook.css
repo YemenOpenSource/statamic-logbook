@@ -197,6 +197,13 @@
 .content .container:has(.lb-page),
 #main .page-wrapper:has(.lb-page) { max-width: 100% !important; }
 
+/* Breathing room above the utility toolbar — the CP header sits flush on top
+   otherwise. Target the page root so the gap lands once. */
+.lb-page { padding-top: var(--lb-s-6); }
+@media (min-width: 960px) {
+    .lb-page { padding-top: var(--lb-s-8); }
+}
+
 /* ============================================================
    Reduced motion
    ============================================================ */
@@ -623,7 +630,8 @@ select.lb-input {
 .lb-chip--ok,
 .lb-chip--create { background: var(--lb-ok-50);     color: var(--lb-ok-700);     border-color: var(--lb-ok-100); }
 .lb-chip--info,
-.lb-chip--update { background: var(--lb-accent-soft); color: var(--lb-accent-700); border-color: var(--lb-accent-100); }
+.lb-chip--update { background: var(--lb-warn-50);    color: var(--lb-warn-700);   border-color: var(--lb-warn-100); }
+.lb-chip--auth   { background: var(--lb-accent-soft); color: var(--lb-accent-700); border-color: var(--lb-accent-100); }
 .lb-chip--debug,
 .lb-chip--muted  { background: var(--lb-bg-muted);  color: var(--lb-text-muted); border-color: var(--lb-border); }
 
@@ -633,7 +641,8 @@ select.lb-input {
 .dark .lb-chip--ok,
 .dark .lb-chip--create { background: rgba(34, 197, 94, 0.12);  color: #86efac; border-color: rgba(34, 197, 94, 0.25); }
 .dark .lb-chip--info,
-.dark .lb-chip--update { background: rgba(129, 140, 248, 0.12); color: #c7d2fe; border-color: rgba(129, 140, 248, 0.28); }
+.dark .lb-chip--update { background: rgba(245, 158, 11, 0.14); color: #fcd34d; border-color: rgba(245, 158, 11, 0.28); }
+.dark .lb-chip--auth   { background: rgba(129, 140, 248, 0.14); color: #c7d2fe; border-color: rgba(129, 140, 248, 0.28); }
 .dark .lb-chip--debug,
 .dark .lb-chip--muted  { background: var(--lb-bg-muted); color: var(--lb-text-muted); border-color: var(--lb-border); }
 
@@ -754,6 +763,109 @@ select.lb-input {
 .lb-card__delta--flat { color: var(--lb-text-subtle); }
 .dark .lb-card__delta--up   { color: #fca5a5; }
 .dark .lb-card__delta--down { color: #86efac; }
+
+/* F5: tiny status chip slotted under the card meta line — used for
+   "Last error 3h ago" / "No errors in 72h" style callouts. */
+.lb-card__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: var(--lb-s-2) 0 0;
+    padding: 2px 8px;
+    border-radius: var(--lb-r-full);
+    background: color-mix(in srgb, var(--lb-danger-50, #fef2f2) 85%, transparent);
+    color: var(--lb-danger-700, #b91c1c);
+    border: 1px dashed color-mix(in srgb, var(--lb-danger-500, #ef4444) 30%, transparent);
+    font-size: var(--lb-fs-11);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    width: max-content;
+    max-width: 100%;
+}
+.lb-card__chip--ok {
+    background: color-mix(in srgb, var(--lb-ok-50, #f0fdf4) 85%, transparent);
+    color: var(--lb-ok-700, #15803d);
+    border-color: color-mix(in srgb, var(--lb-ok-500, #22c55e) 30%, transparent);
+}
+.dark .lb-card__chip    { background: rgba(239, 68, 68, 0.14); color: #fca5a5; border-color: rgba(239, 68, 68, 0.38); }
+.dark .lb-card__chip--ok { background: rgba(34, 197, 94, 0.14); color: #86efac; border-color: rgba(34, 197, 94, 0.38); }
+
+/* F5: tighter header variant for sub-sections inside the widget. */
+.lb-header--tight {
+    margin-top: var(--lb-s-4);
+    margin-bottom: var(--lb-s-2);
+}
+
+/* F5: Error signatures list — click-through links that collapse
+   thousands of near-identical errors into a handful of fingerprinted
+   rows. Each row behaves like a card. */
+.lb-signatures {
+    display: grid;
+    gap: var(--lb-s-2);
+    margin-top: var(--lb-s-2);
+}
+.lb-signature {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--lb-s-3);
+    padding: var(--lb-s-3) var(--lb-s-4);
+    border-radius: var(--lb-r-md);
+    background: var(--lb-bg);
+    border: 1px solid var(--lb-border-subtle);
+    color: var(--lb-text);
+    text-decoration: none;
+    transition:
+        background var(--lb-t-fast) var(--lb-ease),
+        border-color var(--lb-t-fast) var(--lb-ease),
+        transform var(--lb-t-fast) var(--lb-ease);
+}
+.lb-signature:hover {
+    background: var(--lb-bg-muted);
+    border-color: var(--lb-border);
+    transform: translateY(-1px);
+}
+.lb-signature__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    padding: 4px 10px;
+    border-radius: var(--lb-r-full);
+    background: var(--lb-danger-50, #fef2f2);
+    color: var(--lb-danger-700, #b91c1c);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--lb-fs-14);
+    border: 1px solid color-mix(in srgb, var(--lb-danger-500, #ef4444) 20%, transparent);
+}
+.dark .lb-signature__count { background: rgba(239, 68, 68, 0.14); color: #fca5a5; border-color: rgba(239, 68, 68, 0.30); }
+.lb-signature__body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lb-signature__sig {
+    font-family: var(--lb-font-mono);
+    font-size: var(--lb-fs-12);
+    color: var(--lb-text-strong);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lb-signature__meta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lb-s-2);
+    font-size: var(--lb-fs-11);
+    color: var(--lb-text-muted);
+}
+.lb-signature__cta {
+    color: var(--lb-text-subtle);
+    font-size: var(--lb-fs-16);
+    font-weight: 400;
+    transition: transform var(--lb-t-fast) var(--lb-ease), color var(--lb-t-fast) var(--lb-ease);
+}
+.lb-signature:hover .lb-signature__cta {
+    transform: translateX(2px);
+    color: var(--lb-text-strong);
+}
 
 /* ============================================================
    Sparkline SVG styling (used inside cards + stats)
@@ -970,6 +1082,89 @@ select.lb-input {
 .lb-chart__footer { display: flex; justify-content: flex-end; margin-top: var(--lb-s-3); }
 
 /* ============================================================
+   F5: 7-day × 24-hour activity heatmap
+   ============================================================
+   Each cell's visibility is driven by --lb-intensity (0..1).
+   We paint the accent color at that alpha so dense hours pop and
+   empty hours fade into the row background. */
+
+.lb-heatmap {
+    padding-top: var(--lb-s-3);
+    border-top: 1px solid var(--lb-border-subtle);
+}
+.lb-heatmap__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--lb-s-3);
+    margin-bottom: var(--lb-s-2);
+    flex-wrap: wrap;
+}
+.lb-heatmap__hint {
+    font-size: var(--lb-fs-11);
+    color: var(--lb-text-muted);
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lb-s-2);
+}
+.lb-heatmap__legend { display: inline-flex; align-items: center; gap: 2px; }
+.lb-heatmap__swatch {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--lb-accent) calc(var(--lb-intensity, 0) * 100%), transparent);
+    border: 1px solid var(--lb-border-subtle);
+}
+.lb-heatmap__grid {
+    display: grid;
+    gap: 2px;
+    font-variant-numeric: tabular-nums;
+}
+.lb-heatmap__hours {
+    display: grid;
+    grid-template-columns: 56px repeat(24, minmax(0, 1fr));
+    font-size: 10px;
+    color: var(--lb-text-subtle);
+    margin-bottom: 2px;
+}
+.lb-heatmap__hours span { text-align: left; }
+.lb-heatmap__row {
+    display: grid;
+    grid-template-columns: 56px repeat(24, minmax(0, 1fr));
+    gap: 2px;
+    align-items: center;
+}
+.lb-heatmap__label {
+    font-size: var(--lb-fs-11);
+    color: var(--lb-text-muted);
+    padding-right: var(--lb-s-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.lb-heatmap__cell {
+    display: block;
+    height: 18px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--lb-accent) calc(var(--lb-intensity, 0) * 100%), var(--lb-bg-subtle));
+    border: 1px solid color-mix(in srgb, var(--lb-accent) calc(var(--lb-intensity, 0) * 18%), var(--lb-border-subtle));
+    transition: transform var(--lb-t-fast) var(--lb-ease);
+}
+.lb-heatmap__cell:hover {
+    transform: scale(1.25);
+    z-index: 1;
+}
+.dark .lb-heatmap__cell {
+    background: color-mix(in srgb, var(--lb-accent) calc(var(--lb-intensity, 0) * 100%), #111);
+    border-color: color-mix(in srgb, var(--lb-accent) calc(var(--lb-intensity, 0) * 30%), rgba(255,255,255,0.05));
+}
+@media (max-width: 720px) {
+    .lb-heatmap__hours,
+    .lb-heatmap__row { grid-template-columns: 44px repeat(24, minmax(0, 1fr)); }
+    .lb-heatmap__cell { height: 14px; }
+}
+
+/* ============================================================
    Timeline view (unified system+audit)
    ============================================================ */
 
@@ -1091,11 +1286,109 @@ select.lb-input {
 .lb-table__sort[aria-sort="ascending"]::after  { content: "↑"; opacity: 1; color: var(--lb-accent); }
 .lb-table__sort[aria-sort="descending"]::after { content: "↓"; opacity: 1; color: var(--lb-accent); }
 
-/* Density variants */
+/* Density variants (legacy — kept for back-compat with hardcoded table classes) */
 .lb-table--compact thead th,
 .lb-table--compact tbody td { padding: var(--lb-s-2) var(--lb-s-3); }
 .lb-table--spacious thead th,
 .lb-table--spacious tbody td { padding: var(--lb-s-4) var(--lb-s-5); }
+
+/* ============================================================
+   Density modes (root-level)
+   ============================================================
+   Applied to `.lb-page` by the density toggle JS. Each mode retunes
+   table padding, typography, and also turns whole UI regions on/off
+   so the choice actually matters beyond font size.
+
+   - lb-density--compact : information-dense analyst view
+       · tighter padding, smaller type
+       · hides secondary meta lines (.lb-cell-clamp__line.lb-table__muted)
+       · forces truncation on every cell line
+       · stat grid + filter inputs shrink
+   - lb-density--cozy    : default
+   - lb-density--spacious: readable, wraps long content
+       · larger padding + line-height
+       · cell clamps released — long messages wrap across multiple lines
+       · stat grid + filter inputs grow
+*/
+
+/* --- Compact -------------------------------------------------------- */
+.lb-density--compact .lb-table thead th,
+.lb-density--compact .lb-table tbody td { padding: var(--lb-s-2) var(--lb-s-3); }
+.lb-density--compact .lb-table { font-size: var(--lb-fs-12); }
+.lb-density--compact .lb-table__time { font-size: var(--lb-fs-11); }
+
+.lb-density--compact .lb-cell-clamp { max-width: 34ch; }
+@media (min-width: 1280px) {
+    .lb-density--compact .lb-cell-clamp { max-width: 44ch; }
+}
+/* Force every cell line to truncate — even secondary metadata. */
+.lb-density--compact .lb-cell-clamp__line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Hide the secondary muted meta line (subject_type · handle, channel
+   under message) to reclaim a row of vertical space per log line. */
+.lb-density--compact .lb-table td .lb-table__muted.lb-cell-clamp__line {
+    display: none;
+}
+/* Hide the inline change-hint ribbon — users can still open the View
+   modal. This was the single biggest wasted row in dense views. */
+.lb-density--compact .lb-change-hint { display: none; }
+/* Shrink chip paddings so rows are noticeably shorter. */
+.lb-density--compact .lb-chip {
+    padding: 1px 6px;
+    font-size: var(--lb-fs-10);
+}
+.lb-density--compact .lb-chip__dot { display: none; }
+/* Stat grid becomes a compact strip. */
+.lb-density--compact .lb-stat {
+    padding: var(--lb-s-2) var(--lb-s-3);
+}
+.lb-density--compact .lb-stat__value { font-size: var(--lb-fs-18); }
+.lb-density--compact .lb-stat__label { font-size: var(--lb-fs-10); }
+/* Filter inputs + buttons shrink. */
+.lb-density--compact .lb-filter .lb-input {
+    height: 28px;
+    font-size: var(--lb-fs-12);
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+.lb-density--compact .lb-filter .lb-btn { padding: 4px 10px; font-size: var(--lb-fs-12); }
+
+/* --- Cozy (default) ------------------------------------------------- */
+.lb-density--cozy .lb-table thead th,
+.lb-density--cozy .lb-table tbody td { padding: var(--lb-s-3) var(--lb-s-4); }
+
+/* --- Spacious ------------------------------------------------------- */
+.lb-density--spacious .lb-table thead th,
+.lb-density--spacious .lb-table tbody td {
+    padding: var(--lb-s-4) var(--lb-s-5);
+    line-height: 1.55;
+}
+.lb-density--spacious .lb-table { font-size: var(--lb-fs-14); }
+.lb-density--spacious .lb-table__time { font-size: var(--lb-fs-12); }
+/* Release cell clamps: let long messages wrap instead of truncate. */
+.lb-density--spacious .lb-cell-clamp { max-width: none; }
+.lb-density--spacious .lb-cell-clamp__line {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+/* Softer, rounded stat cards. */
+.lb-density--spacious .lb-stat { padding: var(--lb-s-5) var(--lb-s-5); }
+.lb-density--spacious .lb-stat__value { font-size: var(--lb-fs-24); }
+/* Bigger filter controls for touch/handoff friendliness. */
+.lb-density--spacious .lb-filter .lb-input {
+    height: 40px;
+    font-size: var(--lb-fs-14);
+}
+.lb-density--spacious .lb-filter .lb-btn { padding: 8px 14px; font-size: var(--lb-fs-14); }
+/* Give the change-hint more room. */
+.lb-density--spacious .lb-change-hint {
+    padding: 4px 10px;
+    font-size: var(--lb-fs-12);
+}
 
 /* Inline row detail */
 .lb-table__detail-row td {
@@ -1197,6 +1490,49 @@ select.lb-input {
 .lb-message-cell { max-width: 720px; }
 
 /* ============================================================
+   Audit change-diff inline hint + generic truncation helpers
+   ============================================================ */
+
+.lb-change-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lb-s-1);
+    margin-top: 4px;
+    padding: 2px 8px;
+    border-radius: var(--lb-r-full);
+    background: color-mix(in srgb, var(--lb-warn-50) 85%, transparent);
+    color: var(--lb-warn-700);
+    border: 1px dashed color-mix(in srgb, var(--lb-warn-500) 30%, transparent);
+    font-size: var(--lb-fs-11);
+    font-family: var(--lb-font-mono);
+    line-height: 1.35;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lb-change-hint svg { flex-shrink: 0; opacity: 0.7; }
+.dark .lb-change-hint {
+    background: rgba(245, 158, 11, 0.10);
+    color: #fcd34d;
+    border-color: rgba(245, 158, 11, 0.30);
+}
+
+/* Generic single-line truncation inside a table cell.
+   `.lb-cell-clamp__line` is used for each truncated line. */
+.lb-cell-clamp { min-width: 0; max-width: 42ch; }
+.lb-cell-clamp__line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    max-width: 100%;
+}
+@media (min-width: 1280px) {
+    .lb-cell-clamp { max-width: 56ch; }
+}
+
+/* ============================================================
    Pagination
    ============================================================ */
 
@@ -1208,6 +1544,110 @@ select.lb-input {
 .lb-pagination a,
 .lb-pagination span {
     font-size: var(--lb-fs-12) !important;
+}
+
+/* Redesigned footer row: result range + per-page selector + chip paginator.
+   Layout is a flex row that wraps below ~640px so the per-page form and
+   the numeric pager stack cleanly on small screens. */
+.lb-pagination-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lb-s-3);
+    padding: var(--lb-s-3) var(--lb-s-4);
+    border-top: 1px solid var(--lb-border);
+    background: var(--lb-bg-subtle);
+}
+.lb-pagination-bar__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lb-s-4);
+    color: var(--lb-text-muted);
+    font-size: var(--lb-fs-12);
+}
+.lb-pagination-bar__range strong { color: var(--lb-text-strong); font-weight: 600; }
+.lb-pagination-bar__perpage {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lb-s-2);
+}
+.lb-pagination-bar__label {
+    font-size: var(--lb-fs-12);
+    color: var(--lb-text-muted);
+    white-space: nowrap;
+}
+.lb-pagination-bar__nav { display: flex; }
+
+/* Chip-style paginator — replaces Laravel's default bootstrap markup. */
+.lb-pager {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.lb-page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: var(--lb-r-md);
+    background: var(--lb-bg);
+    color: var(--lb-text);
+    border: 1px solid var(--lb-border);
+    font-size: var(--lb-fs-12);
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+    transition: background var(--lb-t-fast) var(--lb-ease),
+                border-color var(--lb-t-fast) var(--lb-ease),
+                color var(--lb-t-fast) var(--lb-ease);
+}
+.lb-page-btn:hover { background: var(--lb-bg-muted); border-color: var(--lb-border-strong, var(--lb-border)); color: var(--lb-text-strong); }
+.lb-page-btn:focus-visible {
+    outline: 2px solid var(--lb-accent-500, #6366f1);
+    outline-offset: 1px;
+}
+.lb-page-btn--active {
+    background: var(--lb-accent-500, #6366f1);
+    color: #fff;
+    border-color: var(--lb-accent-500, #6366f1);
+    cursor: default;
+}
+.lb-page-btn--active:hover { background: var(--lb-accent-600, #4f46e5); border-color: var(--lb-accent-600, #4f46e5); color: #fff; }
+.lb-page-btn--dots {
+    border-color: transparent;
+    background: transparent;
+    color: var(--lb-text-subtle);
+    cursor: default;
+    padding: 0 4px;
+    min-width: 20px;
+}
+.lb-page-btn--dots:hover { background: transparent; border-color: transparent; color: var(--lb-text-subtle); }
+.lb-page-btn--disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+.lb-page-btn__label { font-weight: 500; }
+
+/* Dark-mode tuning */
+.dark .lb-pagination-bar { background: var(--lb-bg-subtle); }
+.dark .lb-page-btn { background: var(--lb-bg); border-color: var(--lb-border); color: var(--lb-text); }
+.dark .lb-page-btn:hover { background: var(--lb-bg-muted); color: var(--lb-text-strong); }
+.dark .lb-page-btn--active { background: var(--lb-accent-500, #6366f1); color: #fff; border-color: var(--lb-accent-500, #6366f1); }
+
+@media (max-width: 640px) {
+    .lb-pagination-bar { flex-direction: column; align-items: stretch; }
+    .lb-pagination-bar__meta { justify-content: space-between; }
+    .lb-pagination-bar__nav { justify-content: center; }
+    .lb-page-btn__label { display: none; }
 }
 
 /* ============================================================
@@ -1304,20 +1744,30 @@ select.lb-input {
     position: relative;
     display: inline-block;
 }
+/* Menu uses fixed positioning so it escapes the .lb-box (overflow: hidden)
+   parent that would otherwise clip it. JS computes top/left when opening. */
 .lb-preset__menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    min-width: 240px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    min-width: 260px;
+    max-width: 340px;
+    max-height: 60vh;
+    overflow-y: auto;
     background: var(--lb-bg-elev);
     border: 1px solid var(--lb-border);
     border-radius: var(--lb-r-lg);
     box-shadow: var(--lb-shadow-lg);
     padding: var(--lb-s-1);
-    z-index: 30;
+    z-index: 10000;
     display: none;
 }
 .lb-preset[data-open="true"] .lb-preset__menu { display: block; }
+/* When the menu is portalled into <body>, the `[data-open="true"]` rule
+   above can't reach it because `.lb-preset` is no longer an ancestor. The
+   portal layer sets `style="display: block"` inline; the rule below keeps
+   the appearance consistent and provides a fallback for non-JS teardown. */
+body > .lb-preset__menu { display: block; }
 .lb-preset__item {
     display: flex; align-items: center; justify-content: space-between;
     gap: var(--lb-s-3);
@@ -1358,7 +1808,9 @@ select.lb-input {
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    padding: var(--lb-s-10) var(--lb-s-4);
+    /* Generous top offset so the modal clears the CP top nav
+       (host shell is typically 56–80 px tall on Statamic 4/5/6). */
+    padding: clamp(5rem, 10vh, 7rem) var(--lb-s-4) var(--lb-s-10);
     box-sizing: border-box;
 }
 #logbook-modal .lb-modal__backdrop {

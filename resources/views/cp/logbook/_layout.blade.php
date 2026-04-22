@@ -11,11 +11,14 @@
             <p class="lb-toolbar__sub">System logs &amp; user audit logs</p>
         </div>
         <div class="lb-toolbar__actions">
-            {{-- Density toggle (applies to tables on this page) --}}
+            {{-- Density toggle — applies at the page root so each mode
+                 meaningfully restructures the panel (not just font size).
+                 Compact hides secondary meta + forces single-line truncation.
+                 Spacious releases truncation and wraps long content. --}}
             <div class="lb-density" role="group" aria-label="Row density">
-                <button type="button" class="lb-density__btn" data-lb-density="compact"   aria-pressed="false" title="Compact rows">Compact</button>
-                <button type="button" class="lb-density__btn" data-lb-density="comfortable" aria-pressed="true"  title="Comfortable rows">Cozy</button>
-                <button type="button" class="lb-density__btn" data-lb-density="spacious"  aria-pressed="false" title="Spacious rows">Spacious</button>
+                <button type="button" class="lb-density__btn" data-lb-density="compact" aria-pressed="false" title="Compact — dense analyst view, hides secondary meta">Compact</button>
+                <button type="button" class="lb-density__btn" data-lb-density="cozy"    aria-pressed="true"  title="Cozy — default, balanced reading">Cozy</button>
+                <button type="button" class="lb-density__btn" data-lb-density="spacious" aria-pressed="false" title="Spacious — wraps long content, larger controls">Spacious</button>
             </div>
 
             <button type="button"

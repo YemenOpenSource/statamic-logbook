@@ -26,6 +26,7 @@ class InstallCommand extends Command
         // 2) Create tables (idempotent)
         $this->createSystemLogsTable($connection);
         $this->createAuditLogsTable($connection);
+        $this->createUserPrefsTable($connection);
 
         $this->info('✅ Statamic Logbook installation completed successfully.');
         return self::SUCCESS;
@@ -153,6 +154,35 @@ class InstallCommand extends Command
             $table->text('user_agent')->nullable();
 
             $table->timestamp('created_at')->useCurrent()->index();
+        });
+
+        $this->info("• created {$table}");
+    }
+
+    /**
+     * Per-user preference blob for the CP utility (density, saved
+     * filter presets, per-page default, pinned searches, etc.).
+     *
+     * Lives in the logbook DB alongside logs so the addon stays
+     * self-contained and can be fully removed by dropping that DB.
+     * See src/Support/UserPrefsRepository.php for the storage
+     * contract & rationale.
+     */
+    protected function createUserPrefsTable(string $connection): void
+    {
+        $table = 'logbook_user_prefs';
+
+        if ($this->safeHasTable($connection, $table)) {
+            $this->line("• {$table} already exists");
+            return;
+        }
+
+        Schema::connection($connection)->create($table, function (Blueprint $table) {
+            // user_id is Statamic's stringly-typed UUID/slug; we use it
+            // as the natural primary so we don't need a surrogate id.
+            $table->string('user_id', 36)->primary();
+            $table->json('prefs')->nullable();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
 
         $this->info("• created {$table}");

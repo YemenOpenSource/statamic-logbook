@@ -23,9 +23,11 @@ class LogbookTrendsWidget extends Widget
             $conn = DbConnectionResolver::resolve();
             $days = max(1, min(14, (int) $this->config('days', 7)));
             $bars = LogbookDashboardData::dailyTrends($conn, $days);
+            $heatmap = LogbookDashboardData::channelHeatmap($conn, $days);
 
             return view('statamic-logbook::cp.widgets.logbook_trends', [
                 'bars' => $bars,
+                'heatmap' => $heatmap,
             ])->render();
         } catch (\Throwable $e) {
             return $this->errorHtml();

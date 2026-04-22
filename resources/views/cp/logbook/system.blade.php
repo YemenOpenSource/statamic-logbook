@@ -68,7 +68,18 @@
 @endif
 
 <div class="lb-box lb-box--flat" style="border: 0; border-radius: 0;">
-    <form method="GET" class="lb-filter lb-filter--sticky">
+    <form method="GET"
+          action="{{ cp_route('utilities.logbook.system') }}"
+          class="lb-filter lb-filter--sticky"
+          data-lb-filter-form>
+        {{-- Preserve sort/dir + per-page when the user applies new filters so
+             column sort state survives a filter change. These hidden inputs
+             reset page back to 1 implicitly (no `page` carried). --}}
+        <input type="hidden" name="sort" value="{{ $sort ?? 'id' }}">
+        <input type="hidden" name="dir"  value="{{ $dir ?? 'desc' }}">
+        @if(! empty($filters['per_page']))
+            <input type="hidden" name="per_page" value="{{ (int) $filters['per_page'] }}">
+        @endif
         <div class="lb-filter__row">
             <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="lb-input lb-field-sm" aria-label="From date">
             <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="lb-input lb-field-sm" aria-label="To date">
@@ -111,7 +122,7 @@
 
             <div class="lb-preset" data-lb-preset="system">
                 <button type="button" class="lb-btn" data-lb-preset-toggle aria-haspopup="true" aria-expanded="false" title="Saved filter presets">
-                    Presets ▾
+                    Presets <span aria-hidden="true">▾</span>
                 </button>
                 <div class="lb-preset__menu" role="menu" data-lb-preset-menu>
                     <div data-lb-preset-list></div>
@@ -169,13 +180,15 @@
                             {{ strtoupper($row->level) }}
                         </span>
                     </td>
-                    <td class="lb-message-cell">
-                        <div class="truncate" title="{{ $row->message }}">{{ $row->message }}</div>
+                    <td class="lb-message-cell lb-cell-clamp">
+                        <div class="lb-cell-clamp__line" title="{{ $row->message }}">{{ $row->message }}</div>
                         @if($row->channel)
-                            <div class="lb-table__muted">{{ $row->channel }}</div>
+                            <div class="lb-table__muted lb-cell-clamp__line" title="{{ $row->channel }}">{{ $row->channel }}</div>
                         @endif
                     </td>
-                    <td class="lb-table__muted">{{ $row->user_id ?? '—' }}</td>
+                    <td class="lb-table__muted lb-cell-clamp">
+                        <span class="lb-cell-clamp__line" title="{{ $row->user_id ?? '—' }}">{{ $row->user_id ?? '—' }}</span>
+                    </td>
                     <td>
                         <div class="lb-row" style="gap: var(--lb-s-1);">
                             @if($row->context)
@@ -231,7 +244,10 @@
     </table>
 </div>
 
-@if(method_exists($logs, 'links'))
-    <div class="lb-pagination">{{ $logs->withQueryString()->links() }}</div>
-@endif
+@include('statamic-logbook::cp.logbook._pagination', [
+    'logs' => $logs,
+    'perPage' => $perPage ?? 50,
+    'perPageOptions' => $perPageOptions ?? [25, 50, 100, 200],
+    'route' => cp_route('utilities.logbook.system'),
+])
 @endsection

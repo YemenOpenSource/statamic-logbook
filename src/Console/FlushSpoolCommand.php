@@ -53,8 +53,12 @@ class FlushSpoolCommand extends Command
                 $totalInserted += $result['inserted'];
                 if (! $result['ok']) {
                     $failedFiles++;
-                    if (! empty($result['failed_path'])) {
-                        $this->warn('• Failed spool file moved to: '.$result['failed_path']);
+                    if (! empty($result['failed_name'])) {
+                        // Only surface the basename — never the absolute path.
+                        // Operators with shell access can check the failed/
+                        // directory; end-users viewing this in the CP have no
+                        // need to see the server's filesystem layout.
+                        $this->warn('• Failed spool file quarantined: '.$result['failed_name']);
                     }
                     if (! empty($result['error'])) {
                         $this->error('• Flush error: '.$result['error']);
@@ -81,7 +85,7 @@ class FlushSpoolCommand extends Command
     }
 
     /**
-     * @return array{ok: bool, read: int, inserted: int, failed_path?: string, error?: string}
+     * @return array{ok: bool, read: int, inserted: int, failed_name?: string, error?: string}
      */
     private function flushFile(string $conn, string $type, string $path, int $limit, bool $dryRun): array
     {
@@ -149,13 +153,17 @@ class FlushSpoolCommand extends Command
             if (! is_dir($failedDir)) {
                 @mkdir($failedDir, 0775, true);
             }
-            $failedPath = $failedDir.DIRECTORY_SEPARATOR.basename($processingPath).'.'.date('YmdHis').'.failed';
+            $failedName = basename($processingPath).'.'.date('YmdHis').'.failed';
+            $failedPath = $failedDir.DIRECTORY_SEPARATOR.$failedName;
             @rename($processingPath, $failedPath);
             return [
                 'ok' => false,
                 'read' => $read,
                 'inserted' => $inserted,
-                'failed_path' => $failedPath,
+                // Basename only — the absolute path never crosses this boundary
+                // so we can't accidentally leak it into an Artisan::output()
+                // capture that ends up rendered in the CP.
+                'failed_name' => $failedName,
                 'error' => $e->getMessage(),
             ];
         }

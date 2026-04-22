@@ -1,0 +1,16 @@
+* text=auto eol=lf
+
+# Keep release tarballs lean: composer's dist archive shouldn't ship dev
+# tooling or test fixtures to production consumers. Anything listed here is
+# filtered out of `composer install --prefer-dist`.
+/.github                    export-ignore
+/.gitattributes             export-ignore
+/.gitignore                 export-ignore
+/docs                       export-ignore
+/tests                      export-ignore
+/PLAN-v2.md                 export-ignore
+/phpunit.xml                export-ignore
+/package.json               export-ignore
+/package-lock.json          export-ignore
+/node_modules               export-ignore
+/.editorconfig              export-ignore

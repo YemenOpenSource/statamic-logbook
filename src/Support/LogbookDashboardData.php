@@ -130,6 +130,22 @@ class LogbookDashboardData
             24
         );
 
+        // ---- peak hour in the 24h window (highest bucket) ---------------------
+        $peakHour24h = null;
+        if (! empty($systemSpark24h)) {
+            $peakIdx = 0;
+            $peakVal = 0;
+            foreach ($systemSpark24h as $i => $v) {
+                if ($v >= $peakVal) { $peakVal = $v; $peakIdx = $i; }
+            }
+            $peakSlot = $since24h->copy()->startOfHour()->addHours($peakIdx);
+            $peakHour24h = [
+                'count' => (int) $peakVal,
+                'at'    => $peakSlot,
+                'label' => $peakSlot->isoFormat('ddd HH:mm'),
+            ];
+        }
+
         return [
             'systemTotal24h' => $systemTotal24h,
             'systemErrors24h' => $systemErrors24h,
@@ -149,6 +165,11 @@ class LogbookDashboardData
             'systemDelta' => self::delta($systemTotal24h, $systemTotal24hPrev),
             'errorDelta' => self::delta($systemErrors24h, $systemErrors24hPrev),
             'auditDelta' => self::delta($auditTotal24h, $auditTotal24hPrev),
+
+            // Creative additions (F5): uses existing table data in new ways.
+            'lastError'        => self::lastErrorAt($conn),
+            'errorFingerprints' => self::errorFingerprints($conn, 24, 5),
+            'peakHour24h'      => $peakHour24h,
         ];
     }
 
@@ -391,5 +412,202 @@ class LogbookDashboardData
         $text = trim(preg_replace('/\s+/', ' ', $text) ?? '');
 
         return mb_strlen($text) > $max ? mb_substr($text, 0, $max - 1).'…' : $text;
+    }
+
+    /**
+     * Cluster recent errors by a normalised "fingerprint" and return the
+     * top N groups. Useful for spotting repeat offenders — "500 rows
+     * of the same NullPointerException" is much easier to act on than
+     * 500 individual table rows.
+     *
+     * Normalisation strategy (cheap & deterministic): collapse digits,
+     * UUIDs, hex tokens, quoted literals, and email/url-ish things down
+     * to placeholders so two errors that differ only by IDs end up in
+     * the same group.
+     *
+     * @return list<array{
+     *   signature: string,   // normalised, human-friendly form
+     *   example: string,     // the original message we first saw
+     *   count: int,
+     *   last_at: Carbon,
+     *   level: string,
+     * }>
+     */
+    public static function errorFingerprints(string $conn, int $hours = 24, int $limit = 5, int $scan = 500): array
+    {
+        $hours = max(1, min(168, $hours));
+        $limit = max(1, min(20, $limit));
+        $scan  = max(50, min(2000, $scan));
+        $since = now()->subHours($hours);
+
+        $rows = DB::connection($conn)
+            ->table('logbook_system_logs')
+            ->where('created_at', '>=', $since)
+            ->whereIn('level', self::$errorLevels)
+            ->orderByDesc('created_at')
+            ->limit($scan)
+            ->get(['level', 'message', 'created_at']);
+
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $groups = [];
+        foreach ($rows as $row) {
+            $raw = (string) ($row->message ?? '');
+            if ($raw === '') {
+                continue;
+            }
+            $sig = self::fingerprintMessage($raw);
+            if ($sig === '') {
+                continue;
+            }
+
+            if (! isset($groups[$sig])) {
+                $groups[$sig] = [
+                    'signature' => self::truncate($sig, 96),
+                    'example'   => self::truncate($raw, 160),
+                    'count'     => 0,
+                    'last_at'   => Carbon::parse($row->created_at),
+                    'level'     => (string) $row->level,
+                ];
+            }
+
+            $groups[$sig]['count']++;
+            $at = Carbon::parse($row->created_at);
+            if ($at->greaterThan($groups[$sig]['last_at'])) {
+                $groups[$sig]['last_at'] = $at;
+                $groups[$sig]['example'] = self::truncate($raw, 160);
+                $groups[$sig]['level']   = (string) $row->level;
+            }
+        }
+
+        usort($groups, function ($a, $b) {
+            if ($a['count'] === $b['count']) {
+                return $b['last_at']->timestamp <=> $a['last_at']->timestamp;
+            }
+            return $b['count'] <=> $a['count'];
+        });
+
+        return array_slice(array_values($groups), 0, $limit);
+    }
+
+    /**
+     * Timestamp of the most recent ERROR-level system log, and a
+     * human-friendly "Xh Ym" string for display. Returns null when
+     * the error table has been quiet for the configured window.
+     *
+     * @return array{at: Carbon, ago: string, minutes: int}|null
+     */
+    public static function lastErrorAt(string $conn, int $lookbackHours = 72): ?array
+    {
+        $since = now()->subHours(max(1, $lookbackHours));
+        $row = DB::connection($conn)
+            ->table('logbook_system_logs')
+            ->where('created_at', '>=', $since)
+            ->whereIn('level', self::$errorLevels)
+            ->orderByDesc('created_at')
+            ->limit(1)
+            ->value('created_at');
+
+        if (! $row) {
+            return null;
+        }
+
+        $at = Carbon::parse($row);
+        $diffMinutes = max(0, $at->diffInMinutes(now()));
+
+        return [
+            'at' => $at,
+            'ago' => self::humaniseMinutes($diffMinutes),
+            'minutes' => $diffMinutes,
+        ];
+    }
+
+    /**
+     * 7-day × 24-hour activity heatmap for system logs. Returned as a
+     * row-per-day matrix oldest→newest, each row being an array of 24
+     * integer counts (hour 0 through 23). Also returns the max cell
+     * value so the view can scale intensity.
+     *
+     * @return array{matrix: list<list<int>>, labels: list<string>, max: int}
+     */
+    public static function channelHeatmap(string $conn, int $days = 7): array
+    {
+        $days = max(1, min(14, $days));
+        $since = now()->subDays($days - 1)->startOfDay();
+
+        $expr = self::hourExpr($conn);
+        $rows = DB::connection($conn)
+            ->table('logbook_system_logs')
+            ->where('created_at', '>=', $since)
+            ->selectRaw($expr.' as h, COUNT(*) as c')
+            ->groupBy('h')
+            ->pluck('c', 'h')
+            ->all();
+
+        $matrix = [];
+        $labels = [];
+        $max = 0;
+
+        for ($d = 0; $d < $days; $d++) {
+            $day = $since->copy()->addDays($d);
+            $labels[] = $day->isoFormat('dd D');
+            $hours = [];
+            for ($h = 0; $h < 24; $h++) {
+                $key = $day->copy()->setTime($h, 0)->format('Y-m-d H');
+                $match = 0;
+                foreach ($rows as $k => $v) {
+                    if ($k === $key || str_starts_with((string) $k, $key)) {
+                        $match = (int) $v;
+                        break;
+                    }
+                }
+                $hours[] = $match;
+                if ($match > $max) $max = $match;
+            }
+            $matrix[] = $hours;
+        }
+
+        return ['matrix' => $matrix, 'labels' => $labels, 'max' => $max];
+    }
+
+    /**
+     * Collapse a raw log line into a normalised fingerprint so messages
+     * that differ only in IDs / paths / timestamps cluster together.
+     *
+     * Deterministic transformations, applied in order:
+     *   1. UUIDs → #uuid
+     *   2. long hex tokens → #hex
+     *   3. IP addresses → #ip
+     *   4. emails → #email
+     *   5. quoted substrings ("foo" / 'bar') → "…"
+     *   6. numbers → #
+     *   7. runs of whitespace → single space
+     */
+    protected static function fingerprintMessage(string $msg): string
+    {
+        $s = $msg;
+        $s = preg_replace('/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i', '#uuid', $s) ?? $s;
+        $s = preg_replace('/\b[0-9a-f]{16,}\b/i', '#hex', $s) ?? $s;
+        $s = preg_replace('/\b(?:\d{1,3}\.){3}\d{1,3}\b/', '#ip', $s) ?? $s;
+        $s = preg_replace('/[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}/', '#email', $s) ?? $s;
+        $s = preg_replace('/"[^"]{0,80}"/', '"…"', $s) ?? $s;
+        $s = preg_replace("/'[^']{0,80}'/", "'…'", $s) ?? $s;
+        $s = preg_replace('/\b\d+\b/', '#', $s) ?? $s;
+        $s = preg_replace('/\s+/', ' ', $s) ?? $s;
+        return trim($s);
+    }
+
+    protected static function humaniseMinutes(int $minutes): string
+    {
+        if ($minutes < 1)   return 'just now';
+        if ($minutes < 60)  return $minutes.'m';
+        $h = intdiv($minutes, 60);
+        $m = $minutes % 60;
+        if ($h < 24)        return $m > 0 ? $h.'h '.$m.'m' : $h.'h';
+        $d = intdiv($h, 24);
+        $hr = $h % 24;
+        return $hr > 0 ? $d.'d '.$hr.'h' : $d.'d';
     }
 }

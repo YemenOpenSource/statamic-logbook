@@ -1,14 +1,12 @@
 @extends('statamic-logbook::cp.logbook._layout', ['active' => 'audit'])
 
 @php
+    use EmranAlhaddad\StatamicLogbook\Support\AuditActionPresenter;
+
     $b64 = fn($v) => base64_encode((string) $v);
 
-    $actionClass = fn($a) => match (true) {
-        str_contains((string) $a, 'deleted')                                        => 'lb-chip lb-chip--delete',
-        str_contains((string) $a, 'created')                                        => 'lb-chip lb-chip--create',
-        str_contains((string) $a, 'updated') || str_contains((string) $a, 'saved') => 'lb-chip lb-chip--update',
-        default                                                                     => 'lb-chip lb-chip--muted',
-    };
+    $actionClass = fn($a) => 'lb-chip lb-chip--'.AuditActionPresenter::variant((string) $a);
+    $actionLabel = fn($a) => AuditActionPresenter::label((string) $a);
 
     $sort = $sort ?? 'id';
     $dir  = $dir  ?? 'desc';
@@ -42,7 +40,7 @@
         <div class="lb-stat__breakdown">
             @forelse(($stats['top_actions_7d'] ?? []) as $it)
                 <div class="lb-stat__breakdown-row">
-                    <span class="lb-stat__breakdown-key" title="{{ $it['action'] }}">{{ $it['action'] }}</span>
+                    <span class="lb-stat__breakdown-key" title="{{ $it['action'] }}">{{ $actionLabel($it['action']) }}</span>
                     <span class="lb-stat__breakdown-val">{{ number_format($it['count']) }}</span>
                 </div>
             @empty
@@ -68,21 +66,29 @@
 @endif
 
 <div class="lb-box lb-box--flat" style="border: 0; border-radius: 0;">
-    <form method="GET" class="lb-filter lb-filter--sticky">
+    <form method="GET"
+          action="{{ cp_route('utilities.logbook.audit') }}"
+          class="lb-filter lb-filter--sticky"
+          data-lb-filter-form>
+        <input type="hidden" name="sort" value="{{ $sort ?? 'id' }}">
+        <input type="hidden" name="dir"  value="{{ $dir ?? 'desc' }}">
+        @if(! empty($filters['per_page']))
+            <input type="hidden" name="per_page" value="{{ (int) $filters['per_page'] }}">
+        @endif
         <div class="lb-filter__row">
             <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="lb-input lb-field-sm" aria-label="From date">
             <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="lb-input lb-field-sm" aria-label="To date">
             <select name="action" class="lb-input lb-field-md" aria-label="Action">
                 <option value="">All actions</option>
                 @foreach($actions as $a)
-                    <option value="{{ $a }}" @selected(($filters['action'] ?? '') === $a)>{{ $a }}</option>
+                    <option value="{{ $a }}" @selected(($filters['action'] ?? '') === $a)>{{ \EmranAlhaddad\StatamicLogbook\Support\AuditActionPresenter::label($a) }}</option>
                 @endforeach
             </select>
             @if(! empty($subjects))
                 <select name="subject_type" class="lb-input lb-field-md" aria-label="Subject type">
                     <option value="">All subjects</option>
                     @foreach($subjects as $s)
-                        <option value="{{ $s }}" @selected(($filters['subject_type'] ?? '') === $s)>{{ $s }}</option>
+                        <option value="{{ $s }}" @selected(($filters['subject_type'] ?? '') === $s)>{{ ucfirst($s) }}</option>
                     @endforeach
                 </select>
             @endif
@@ -92,7 +98,7 @@
                    name="q"
                    value="{{ $filters['q'] ?? '' }}"
                    class="lb-input lb-filter__search"
-                   placeholder="Search subject title or handle  ·  press / to focus"
+                   placeholder="Search subject title, handle, user, or action  ·  press / to focus"
                    autocomplete="off">
             <button class="lb-btn lb-btn--primary" type="submit">Apply</button>
             <a class="lb-btn lb-btn--ghost" href="{{ cp_route('utilities.logbook.audit') }}">Reset</a>
@@ -111,7 +117,7 @@
 
             <div class="lb-preset" data-lb-preset="audit">
                 <button type="button" class="lb-btn" data-lb-preset-toggle aria-haspopup="true" aria-expanded="false" title="Saved filter presets">
-                    Presets ▾
+                    Presets <span aria-hidden="true">▾</span>
                 </button>
                 <div class="lb-preset__menu" role="menu" data-lb-preset-menu>
                     <div data-lb-preset-list></div>
@@ -164,25 +170,41 @@
                         'user_agent'      => $row->user_agent,
                     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 @endphp
+                @php
+                    $changeHint = AuditActionPresenter::changeSummary($row->changes ?? null);
+                    $userLabel = $row->user_email ?? $row->user_id ?? null;
+                    $subjectLabel = $row->subject_title ?: $row->subject_handle ?: '—';
+                    $subjectMeta  = trim(($row->subject_type ?? '').(($row->subject_handle && $row->subject_handle !== $subjectLabel) ? ' · '.$row->subject_handle : ''), ' ·');
+                @endphp
                 <tr>
                     <td class="lb-table__time" title="{{ $row->created_at }}">{{ $humanTime($row->created_at) }}</td>
                     <td>
-                        <span class="{{ $actionClass($row->action) }}">
+                        <span class="{{ $actionClass($row->action) }}" title="{{ $row->action }}">
                             <span class="lb-chip__dot" aria-hidden="true"></span>
-                            {{ $row->action }}
+                            {{ $actionLabel($row->action) }}
                         </span>
                     </td>
-                    <td>
-                        <div style="font-weight: 500;">{{ $row->subject_title ?? $row->subject_handle ?? '—' }}</div>
-                        <div class="lb-table__muted">{{ $row->subject_type }} · {{ $row->subject_id }}</div>
+                    <td class="lb-cell-clamp">
+                        <div class="lb-cell-clamp__line" title="{{ $subjectLabel }}">{{ $subjectLabel }}</div>
+                        @if($subjectMeta !== '')
+                            <div class="lb-table__muted lb-cell-clamp__line">{{ $subjectMeta }}</div>
+                        @endif
+                        @if($changeHint)
+                            <div class="lb-change-hint lb-cell-clamp__line" title="{{ $changeHint }}">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l6-6 4 4 6-6"/><path d="M14 7h6v6"/></svg>
+                                {{ $changeHint }}
+                            </div>
+                        @endif
                     </td>
-                    <td class="lb-table__muted">{{ $row->user_email ?? $row->user_id ?? '—' }}</td>
+                    <td class="lb-table__muted lb-cell-clamp">
+                        <span class="lb-cell-clamp__line" title="{{ $userLabel ?? '—' }}">{{ $userLabel ?? '—' }}</span>
+                    </td>
                     <td>
                         <div class="lb-row" style="gap: var(--lb-s-1);">
                             @if($row->changes)
                                 @php
                                     $payload  = json_encode(json_decode($row->changes, true), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-                                    $subtitle = ($row->action ?? '').' · '.($row->subject_type ?? '');
+                                    $subtitle = $actionLabel($row->action).' · '.($row->subject_type ?? '');
                                 @endphp
                                 <button type="button"
                                         class="lb-btn lb-btn--sm"
@@ -218,7 +240,10 @@
     </table>
 </div>
 
-@if(method_exists($logs, 'links'))
-    <div class="lb-pagination">{{ $logs->withQueryString()->links() }}</div>
-@endif
+@include('statamic-logbook::cp.logbook._pagination', [
+    'logs' => $logs,
+    'perPage' => $perPage ?? 50,
+    'perPageOptions' => $perPageOptions ?? [25, 50, 100, 200],
+    'route' => cp_route('utilities.logbook.audit'),
+])
 @endsection

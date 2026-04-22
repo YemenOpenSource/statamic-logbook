@@ -101,7 +101,7 @@
                 {!! $renderSpark($systemSpark24h ?? [], 'accent') !!}
             </div>
 
-            {{-- Errors · 24h --}}
+            {{-- Errors · 24h (now with "last error ago" chip — F5) --}}
             <div class="lb-card {{ $systemErrors24h > 0 ? 'lb-card--danger' : '' }}">
                 @if($systemErrors24h > 0)
                     <span class="lb-card__badge lb-card__badge--danger">Attention</span>
@@ -118,6 +118,17 @@
                         <span>· no volume in window</span>
                     @endif
                 </p>
+                @if(! empty($lastError))
+                    <p class="lb-card__chip" title="Most recent error: {{ $lastError['at']->toDateTimeString() }}">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        Last error {{ $lastError['ago'] }} ago
+                    </p>
+                @else
+                    <p class="lb-card__chip lb-card__chip--ok">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                        No errors in 72h
+                    </p>
+                @endif
                 {!! $renderSpark($errorSpark24h ?? [], 'danger') !!}
             </div>
 
@@ -132,20 +143,56 @@
                 {!! $renderSpark($auditSpark24h ?? [], 'warn') !!}
             </div>
 
-            {{-- Error ratio pseudo-card --}}
+            {{-- Peak hour · 24h (F5) --}}
             <div class="lb-card">
-                <p class="lb-card__label">Error ratio</p>
-                <p class="lb-card__value">{{ $errorRatio }}%</p>
-                <p class="lb-card__meta">
-                    @if($systemTotal24h > 0)
-                        <span>{{ number_format($systemErrors24h) }} of {{ number_format($systemTotal24h) }} system lines</span>
-                    @else
-                        <span>No system volume in the current window.</span>
-                    @endif
-                </p>
+                <p class="lb-card__label">Busiest hour · 24h</p>
+                @if(! empty($peakHour24h) && $peakHour24h['count'] > 0)
+                    <p class="lb-card__value">{{ number_format($peakHour24h['count']) }}</p>
+                    <p class="lb-card__meta">
+                        <span>at <strong>{{ $peakHour24h['label'] }}</strong></span>
+                        <span>· {{ $errorRatio }}% error ratio window-wide</span>
+                    </p>
+                @else
+                    <p class="lb-card__value">—</p>
+                    <p class="lb-card__meta"><span>No system volume in the current window.</span></p>
+                @endif
+                {!! $renderSpark($systemSpark24h ?? [], 'ok') !!}
             </div>
         </div>
     </section>
+
+    {{-- Top error signatures — groups raw errors by shape so 500 rows
+         of the same exception collapse into one actionable row. (F5) --}}
+    @if(! empty($errorFingerprints))
+        <section>
+            <div class="lb-header lb-header--tight">
+                <div>
+                    <p class="lb-panel__label">Top error signatures · 24h</p>
+                    <p class="lb-header__meta">Grouped by normalised message shape — same error, different IDs cluster together.</p>
+                </div>
+                <a href="{{ cp_route('utilities.logbook.system', ['level' => 'error']) }}" class="lb-header__link">
+                    View errors <span aria-hidden="true">→</span>
+                </a>
+            </div>
+            <div class="lb-signatures">
+                @foreach($errorFingerprints as $sig)
+                    <a class="lb-signature"
+                       href="{{ cp_route('utilities.logbook.system', ['level' => $sig['level'], 'q' => \Illuminate\Support\Str::limit($sig['example'], 48, '')]) }}"
+                       title="{{ $sig['example'] }}">
+                        <span class="lb-signature__count">{{ number_format($sig['count']) }}</span>
+                        <span class="lb-signature__body">
+                            <span class="lb-signature__sig">{{ $sig['signature'] }}</span>
+                            <span class="lb-signature__meta">
+                                <span class="lb-chip lb-chip--error" style="padding: 0 6px;">{{ strtoupper($sig['level']) }}</span>
+                                <span>Last {{ $sig['last_at']->diffForHumans() }}</span>
+                            </span>
+                        </span>
+                        <span class="lb-signature__cta" aria-hidden="true">→</span>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
 
     <section class="lb-panel-grid">
         @if(! empty($userActivity))

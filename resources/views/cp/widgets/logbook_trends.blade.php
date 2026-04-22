@@ -86,4 +86,54 @@
             </div>
         @endif
     </div>
+
+    {{-- F5: 7-day × 24-hour activity heatmap. Each cell's opacity is
+         proportional to its hourly volume, so the "when does this app
+         actually get used" shape jumps out of the page. --}}
+    @if(! empty($heatmap) && ($heatmap['max'] ?? 0) > 0)
+        @php
+            $max = max(1, (int) ($heatmap['max'] ?? 1));
+        @endphp
+        <div class="lb-heatmap" style="margin-top: 1.25rem;">
+            <div class="lb-heatmap__header">
+                <p class="lb-panel__label">Hourly activity heatmap · last {{ count($heatmap['matrix']) }}d</p>
+                <p class="lb-heatmap__hint">
+                    Peak cell = {{ number_format($max) }} lines ·
+                    <span class="lb-heatmap__legend">
+                        low
+                        <span class="lb-heatmap__swatch" style="--lb-intensity: 0.15"></span>
+                        <span class="lb-heatmap__swatch" style="--lb-intensity: 0.40"></span>
+                        <span class="lb-heatmap__swatch" style="--lb-intensity: 0.70"></span>
+                        <span class="lb-heatmap__swatch" style="--lb-intensity: 1.00"></span>
+                        high
+                    </span>
+                </p>
+            </div>
+
+            <div class="lb-heatmap__grid">
+                <div class="lb-heatmap__hours" aria-hidden="true">
+                    <span></span>
+                    @for($h = 0; $h < 24; $h += 3)
+                        <span style="grid-column: {{ $h + 2 }} / span 3;">{{ sprintf('%02d', $h) }}</span>
+                    @endfor
+                </div>
+                @foreach($heatmap['matrix'] as $i => $row)
+                    <div class="lb-heatmap__row">
+                        <span class="lb-heatmap__label">{{ $heatmap['labels'][$i] ?? '' }}</span>
+                        @foreach($row as $h => $count)
+                            @php
+                                $intensity = $max > 0 ? round($count / $max, 3) : 0;
+                                // Lift near-zero non-empty cells so they're still visible.
+                                if ($count > 0 && $intensity < 0.06) $intensity = 0.06;
+                            @endphp
+                            <span class="lb-heatmap__cell"
+                                  style="--lb-intensity: {{ $intensity }};"
+                                  title="{{ ($heatmap['labels'][$i] ?? '') }} {{ sprintf('%02d', $h) }}:00 · {{ number_format($count) }} lines"
+                                  aria-label="{{ number_format($count) }} lines at {{ sprintf('%02d', $h) }}:00"></span>
+                        @endforeach
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 </div>

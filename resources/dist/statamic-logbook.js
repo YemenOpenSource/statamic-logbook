@@ -169,18 +169,39 @@
     // ------------------------------------------------------
     // 4. Utility page: density toggle (Compact / Cozy / Spacious)
     // ------------------------------------------------------
-    // Persists user's preference in localStorage and re-applies
-    // on page load. Buttons carry `data-lb-density="<mode>"`.
+    // Applies `.lb-density--{mode}` to every `.lb-page` on screen. CSS
+    // rules hang off that root class, so a single class swap retunes:
+    //   - table row padding + font size
+    //   - whether secondary meta lines show (compact hides them)
+    //   - whether cells are forced to truncate (compact) or wrap (spacious)
+    //   - filter control / stat-grid sizing
+    //
+    // Persists the user's choice in localStorage. Buttons carry
+    // `data-lb-density="<mode>"` and render an aria-pressed state.
     var DENSITY_KEY = 'statamic-logbook.density';
-    var DENSITY_CLASSES = ['lb-table--compact', 'lb-table--spacious'];
+    var DENSITY_MODES = ['compact', 'cozy', 'spacious'];
+    // Legacy class names left in place for any callers in older views.
+    var LEGACY_TABLE_CLASSES = ['lb-table--compact', 'lb-table--spacious'];
+    var ROOT_DENSITY_CLASSES = DENSITY_MODES.map(function (m) { return 'lb-density--' + m; });
 
     function applyDensity(mode) {
+        if (DENSITY_MODES.indexOf(mode) === -1) mode = 'cozy';
+
+        // Root-level density class drives the bulk of CSS rules.
+        var pages = document.querySelectorAll('.lb-page');
+        pages.forEach(function (page) {
+            ROOT_DENSITY_CLASSES.forEach(function (c) { page.classList.remove(c); });
+            page.classList.add('lb-density--' + mode);
+        });
+
+        // Legacy table class swap kept for back-compat.
         var tables = document.querySelectorAll('.lb-page .lb-table');
         tables.forEach(function (t) {
-            DENSITY_CLASSES.forEach(function (c) { t.classList.remove(c); });
+            LEGACY_TABLE_CLASSES.forEach(function (c) { t.classList.remove(c); });
             if (mode === 'compact')  t.classList.add('lb-table--compact');
             if (mode === 'spacious') t.classList.add('lb-table--spacious');
         });
+
         var btns = document.querySelectorAll('[data-lb-density]');
         btns.forEach(function (b) {
             b.setAttribute('aria-pressed', b.getAttribute('data-lb-density') === mode ? 'true' : 'false');
@@ -190,15 +211,20 @@
     document.addEventListener('click', function (e) {
         var btn = e.target.closest && e.target.closest('[data-lb-density]');
         if (!btn) return;
-        var mode = btn.getAttribute('data-lb-density') || 'comfortable';
+        var mode = btn.getAttribute('data-lb-density') || 'cozy';
         try { localStorage.setItem(DENSITY_KEY, mode); } catch (_) { /* ignore quota / private mode */ }
         applyDensity(mode);
     });
 
     // Re-apply stored preference on DOMContentLoaded
     function initDensity() {
-        var mode = 'comfortable';
-        try { mode = localStorage.getItem(DENSITY_KEY) || 'comfortable'; } catch (_) {}
+        var mode = 'cozy';
+        try {
+            var stored = localStorage.getItem(DENSITY_KEY);
+            // Migrate historical 'comfortable' label → 'cozy'.
+            if (stored === 'comfortable') stored = 'cozy';
+            if (stored && DENSITY_MODES.indexOf(stored) !== -1) mode = stored;
+        } catch (_) {}
         applyDensity(mode);
     }
     if (document.readyState === 'loading') {
@@ -210,30 +236,124 @@
     // ------------------------------------------------------
     // 5. Utility page: live tail toggle
     // ------------------------------------------------------
-    // The live-tail button carries:
-    //   data-lb-live-tail-json="<JSON endpoint URL>"
-    // When toggled on we poll the JSON endpoint every 5s with
-    // the most-recent row id already in the table. If the
-    // endpoint returns new rows, we flash the button label with
-    // "N new — click to refresh" and the user can click once to
-    // reload the page (preserves their filters via query string).
+    // Polls a JSON endpoint for new rows and shows an "N new — click
+    // to refresh" nudge when the server has fresher data than the
+    // currently-rendered table.
+    //
+    // This version is optimised for resource-friendliness:
+    //
+    //   * Uses a `setTimeout` self-chain instead of `setInterval` so
+    //     it never queues up polls behind a stalled request.
+    //   * Pauses when the tab is hidden (visibilitychange) — browsers
+    //     already throttle background timers, but skipping the fetch
+    //     outright is cheaper and avoids a backlog of stale requests
+    //     piling up the moment the tab refocuses.
+    //   * Pauses when the browser reports offline.
+    //   * Aborts the in-flight request on toggle-off, navigation,
+    //     or visibility change.
+    //   * Exponential backoff on consecutive errors (5 → 10 → 20 →
+    //     max 60 seconds), with jitter to avoid thundering-herd on
+    //     shared backends. Backoff resets after a successful poll.
+    //   * Idle relaxation: after N consecutive empty responses the
+    //     interval stretches (1× → 2× → 4×, capped) so an idle
+    //     site quietly drops to ~20s polling instead of hammering
+    //     the server every 5s. First non-empty response snaps it
+    //     back.
+    //   * Skips a poll if the previous request hasn't returned yet.
     //
     // Preference persists under localStorage key
     //   statamic-logbook.live-tail
     // so the tail resumes after a manual refresh.
-    var LIVE_TAIL_KEY = 'statamic-logbook.live-tail';
-    var liveTailTimer = null;
+    var LIVE_TAIL_KEY  = 'statamic-logbook.live-tail';
+    var LIVE_TAIL_BASE = 5000;   // base poll period (ms)
+    var LIVE_TAIL_MAX  = 60000;  // upper bound for backoff/idle
+    var liveTailTimer    = null;
+    var liveTailAbort    = null;
+    var liveTailInFlight = false;
     var liveTailLastCount = 0;
+    var liveTailErrors    = 0;
+    var liveTailIdleHits  = 0; // consecutive empty polls
 
-    function latestIdOnPage() {
-        // Tables are ordered desc on `id`, so the first data row wins.
-        var firstTime = document.querySelector('.lb-page .lb-table tbody tr .lb-table__time');
-        if (!firstTime) return 0;
-        // id is not in the DOM, but the JSON endpoint accepts `after_id`
-        // derived from the latest row's `created_at`. For simplicity we
-        // instead ask the endpoint with after_id=0 and rely on its own
-        // latest_id bookkeeping on subsequent polls.
-        return Number(firstTime.getAttribute('data-lb-id') || 0);
+    function currentLiveTailButton() {
+        return document.querySelector('[data-lb-live-tail][aria-pressed="true"]');
+    }
+
+    function nextLiveTailDelay() {
+        // Backoff after errors beats idle relaxation — errors can mean
+        // the server is sick and we want to give it air.
+        if (liveTailErrors > 0) {
+            var backed = LIVE_TAIL_BASE * Math.pow(2, Math.min(liveTailErrors, 4));
+            var jitter = Math.random() * 500;
+            return Math.min(LIVE_TAIL_MAX, backed + jitter);
+        }
+        if (liveTailIdleHits > 0) {
+            // 5s → 10s → 20s → 40s, capped at LIVE_TAIL_MAX
+            var stretch = LIVE_TAIL_BASE * Math.pow(2, Math.min(liveTailIdleHits, 3));
+            return Math.min(LIVE_TAIL_MAX, stretch);
+        }
+        return LIVE_TAIL_BASE;
+    }
+
+    function liveTailTick(button, url) {
+        // Invariant: only fires while the button is still armed AND
+        // the tab is visible AND we're online. Any of those flipping
+        // cancels this cycle.
+        if (!button || button.getAttribute('aria-pressed') !== 'true') return;
+        if (document.hidden) { scheduleLiveTailPoll(button, url); return; }
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            scheduleLiveTailPoll(button, url);
+            return;
+        }
+        if (liveTailInFlight) { scheduleLiveTailPoll(button, url); return; }
+
+        var afterId = Number(button.getAttribute('data-lb-live-tail-after') || 0);
+
+        // AbortController lets us bin the request if the user toggles
+        // off mid-flight — saves the server a wasted round-trip and
+        // prevents a late response from mutating state after the
+        // user thought they'd stopped.
+        var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        liveTailAbort = controller;
+        liveTailInFlight = true;
+
+        fetch(url + '?after_id=' + encodeURIComponent(afterId) + '&limit=1', {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+            signal: controller ? controller.signal : undefined
+        })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                liveTailInFlight = false;
+                if (controller !== liveTailAbort) return; // superseded
+                if (!j) { liveTailErrors++; return; }
+
+                liveTailErrors = 0;
+                var count = Number(j.count || 0);
+                if (count > 0) {
+                    liveTailIdleHits = 0;
+                    liveTailLastCount += count;
+                    var nextId = Number(j.latest_id || afterId);
+                    button.setAttribute('data-lb-live-tail-after', String(nextId));
+                    var label = button.querySelector('[data-lb-live-tail-label]');
+                    if (label) label.textContent = liveTailLastCount + ' new · click to refresh';
+                } else {
+                    liveTailIdleHits++;
+                }
+            })
+            .catch(function (err) {
+                liveTailInFlight = false;
+                if (err && err.name === 'AbortError') return; // user-initiated
+                liveTailErrors++;
+            })
+            .finally(function () {
+                scheduleLiveTailPoll(button, url);
+            });
+    }
+
+    function scheduleLiveTailPoll(button, url) {
+        if (liveTailTimer) { clearTimeout(liveTailTimer); liveTailTimer = null; }
+        if (!button || button.getAttribute('aria-pressed') !== 'true') return;
+        liveTailTimer = setTimeout(function () { liveTailTick(button, url); }, nextLiveTailDelay());
     }
 
     function startLiveTail(button) {
@@ -241,53 +361,43 @@
         var url = button.getAttribute('data-lb-live-tail-json');
         if (!url) return;
 
-        var baseId = Number(button.getAttribute('data-lb-live-tail-after') || 0);
-        if (!baseId) {
-            // Seed from an immediate probe so the first poll doesn't
-            // return the currently-visible head row as "new".
-            fetch(url + '?limit=1', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
-                .then(function (r) { return r.ok ? r.json() : { latest_id: 0 }; })
-                .then(function (j) {
-                    baseId = Number(j.latest_id || 0);
-                    button.setAttribute('data-lb-live-tail-after', String(baseId));
-                    scheduleLiveTailPoll(button, baseId, url);
-                })
-                .catch(function () { scheduleLiveTailPoll(button, 0, url); });
-        } else {
-            scheduleLiveTailPoll(button, baseId, url);
-        }
+        liveTailErrors = 0;
+        liveTailIdleHits = 0;
+
+        // Seed from an immediate probe so the first poll doesn't
+        // return the currently-visible head row as "new".
+        var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        liveTailAbort = controller;
+
+        fetch(url + '?limit=1', {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+            signal: controller ? controller.signal : undefined
+        })
+            .then(function (r) { return r.ok ? r.json() : { latest_id: 0 }; })
+            .then(function (j) {
+                if (controller !== liveTailAbort) return;
+                var baseId = Number(j.latest_id || 0);
+                button.setAttribute('data-lb-live-tail-after', String(baseId));
+                scheduleLiveTailPoll(button, url);
+            })
+            .catch(function (err) {
+                if (err && err.name === 'AbortError') return;
+                liveTailErrors++;
+                scheduleLiveTailPoll(button, url);
+            });
 
         button.setAttribute('aria-pressed', 'true');
         try { localStorage.setItem(LIVE_TAIL_KEY, '1'); } catch (_) {}
     }
 
-    function scheduleLiveTailPoll(button, afterId, url) {
-        liveTailTimer = setInterval(function () {
-            fetch(url + '?after_id=' + encodeURIComponent(afterId), {
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
-            })
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (j) {
-                    if (!j) return;
-                    var count = Number(j.count || 0);
-                    if (count > 0) {
-                        liveTailLastCount += count;
-                        afterId = Number(j.latest_id || afterId);
-                        button.setAttribute('data-lb-live-tail-after', String(afterId));
-                        var label = button.querySelector('[data-lb-live-tail-label]');
-                        if (label) label.textContent = liveTailLastCount + ' new · click to refresh';
-                    }
-                })
-                .catch(function () { /* swallow */ });
-        }, 5000);
-    }
-
     function stopLiveTail() {
-        if (liveTailTimer) {
-            clearInterval(liveTailTimer);
-            liveTailTimer = null;
+        if (liveTailTimer) { clearTimeout(liveTailTimer); liveTailTimer = null; }
+        if (liveTailAbort && typeof liveTailAbort.abort === 'function') {
+            try { liveTailAbort.abort(); } catch (_) {}
         }
+        liveTailAbort = null;
+        liveTailInFlight = false;
     }
 
     document.addEventListener('click', function (e) {
@@ -304,6 +414,8 @@
             stopLiveTail();
             btn.setAttribute('aria-pressed', 'false');
             liveTailLastCount = 0;
+            liveTailErrors = 0;
+            liveTailIdleHits = 0;
             var label = btn.querySelector('[data-lb-live-tail-label]');
             if (label) label.textContent = 'Live tail';
             try { localStorage.removeItem(LIVE_TAIL_KEY); } catch (_) {}
@@ -311,6 +423,46 @@
             startLiveTail(btn);
         }
     });
+
+    // Pause on tab hidden, snap back on visible. Browsers throttle
+    // background timers anyway, but cutting polls entirely is cheaper
+    // and means we come back fresh instead of replaying a backlog.
+    document.addEventListener('visibilitychange', function () {
+        var btn = currentLiveTailButton();
+        if (!btn) return;
+        if (document.hidden) {
+            if (liveTailTimer) { clearTimeout(liveTailTimer); liveTailTimer = null; }
+            if (liveTailAbort && typeof liveTailAbort.abort === 'function') {
+                try { liveTailAbort.abort(); } catch (_) {}
+            }
+            liveTailInFlight = false;
+        } else {
+            // Tab just became visible — reset idle counter so we
+            // immediately poll rather than whatever long delay was
+            // queued before.
+            liveTailIdleHits = 0;
+            var url = btn.getAttribute('data-lb-live-tail-json');
+            if (url) scheduleLiveTailPoll(btn, url);
+        }
+    });
+
+    // Pause when offline; resume once back online.
+    window.addEventListener('offline', function () {
+        if (liveTailTimer) { clearTimeout(liveTailTimer); liveTailTimer = null; }
+    });
+    window.addEventListener('online', function () {
+        var btn = currentLiveTailButton();
+        if (!btn) return;
+        liveTailErrors = 0;
+        liveTailIdleHits = 0;
+        var url = btn.getAttribute('data-lb-live-tail-json');
+        if (url) scheduleLiveTailPoll(btn, url);
+    });
+
+    // Clean up before the page navigates away — prevents a dangling
+    // in-flight fetch from resolving against a torn-down page.
+    window.addEventListener('pagehide', function () { stopLiveTail(); });
+    window.addEventListener('beforeunload', function () { stopLiveTail(); });
 
     function initLiveTail() {
         var enabled = false;
@@ -353,7 +505,17 @@
     function renderPresetList(root) {
         var scope = root.getAttribute('data-lb-preset') || 'default';
         var list = readPresets(scope);
+        // `.lb-preset__menu` (and therefore `[data-lb-preset-list]`) may be
+        // portalled into <body> while open — look inside the root first,
+        // then fall back to the portalled menu by id.
         var host = root.querySelector('[data-lb-preset-list]');
+        if (!host) {
+            var menuId = root.getAttribute('data-lb-preset-menu-id');
+            if (menuId) {
+                var menu = document.getElementById(menuId);
+                if (menu) host = menu.querySelector('[data-lb-preset-list]');
+            }
+        }
         if (!host) return;
 
         if (list.length === 0) {
@@ -374,11 +536,91 @@
         }).join('');
     }
 
-    function openPreset(root, open) {
-        root.setAttribute('data-open', open ? 'true' : 'false');
-        var toggle = root.querySelector('[data-lb-preset-toggle]');
-        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // NOTE: the preset toolbar lives inside `.lb-filter--sticky`, which uses
+    // `backdrop-filter: blur(8px)`. Per the CSS spec, `backdrop-filter`
+    // creates a containing block for `position: fixed` descendants — so a
+    // `position: fixed` menu left inside the toolbar is positioned relative
+    // to the toolbar, not the viewport. We work around that by portalling
+    // the menu element into `<body>` while it's open, and returning it to
+    // its original parent on close. The `data-open="true"` CSS rule still
+    // lives on `.lb-preset` (the toolbar-side root), so we apply it to the
+    // portalled menu directly via an inline `display: block` override.
+    function findMenu(root) {
+        var id = root.getAttribute('data-lb-preset-menu-id');
+        if (id) {
+            var byId = document.getElementById(id);
+            if (byId) return byId;
+        }
+        return root.querySelector('[data-lb-preset-menu]');
     }
+
+    function portalMenu(root) {
+        var menu = root.querySelector('[data-lb-preset-menu]');
+        if (!menu) return null;
+        // Assign a stable id so we can find the menu again once it's detached.
+        var id = menu.id;
+        if (!id) {
+            id = 'lb-preset-menu-' + Math.random().toString(36).slice(2, 8);
+            menu.id = id;
+        }
+        root.setAttribute('data-lb-preset-menu-id', id);
+        // Remember the original parent so we can restore it on close.
+        menu.__lbOriginalParent = menu.parentNode;
+        menu.__lbOriginalNext = menu.nextSibling;
+        document.body.appendChild(menu);
+        return menu;
+    }
+
+    function restoreMenu(root) {
+        var menu = findMenu(root);
+        if (!menu) return;
+        var parent = menu.__lbOriginalParent;
+        if (parent) {
+            parent.insertBefore(menu, menu.__lbOriginalNext || null);
+        }
+        menu.style.display = '';
+        menu.style.top = '';
+        menu.style.left = '';
+    }
+
+    function positionPresetMenu(root) {
+        var toggle = root.querySelector('[data-lb-preset-toggle]');
+        var menu = findMenu(root);
+        if (!toggle || !menu) return;
+        var r = toggle.getBoundingClientRect();
+        // Ensure the menu is measurable even before CSS flips it on.
+        menu.style.display = 'block';
+        var menuWidth = Math.max(menu.offsetWidth, 260);
+        var vw = document.documentElement.clientWidth || window.innerWidth;
+        var gap = 6;
+        // Prefer aligning the menu's right edge with the toggle's right edge.
+        var left = Math.min(r.right - menuWidth, vw - menuWidth - 8);
+        if (left < 8) left = 8;
+        menu.style.top = (r.bottom + gap) + 'px';
+        menu.style.left = left + 'px';
+    }
+
+    function openPreset(root, open) {
+        var toggle = root.querySelector('[data-lb-preset-toggle]');
+        if (open) {
+            portalMenu(root);
+            root.setAttribute('data-open', 'true');
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+            positionPresetMenu(root);
+        } else {
+            root.setAttribute('data-open', 'false');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+            restoreMenu(root);
+        }
+    }
+
+    // Keep the menu anchored to its toggle when the user scrolls or resizes.
+    window.addEventListener('scroll', function () {
+        document.querySelectorAll('[data-lb-preset][data-open="true"]').forEach(positionPresetMenu);
+    }, true);
+    window.addEventListener('resize', function () {
+        document.querySelectorAll('[data-lb-preset][data-open="true"]').forEach(positionPresetMenu);
+    });
 
     // Initial render + close-on-outside-click handler.
     function initPresets() {
@@ -388,6 +630,18 @@
         document.addEventListener('DOMContentLoaded', initPresets);
     } else {
         initPresets();
+    }
+
+    // Walk up from `el` to its `.lb-preset` root — either via DOM ancestry
+    // (normal case) or by matching `data-lb-preset-menu-id` when the menu
+    // has been portalled into <body>.
+    function rootForEvent(el) {
+        if (!el || !el.closest) return null;
+        var direct = el.closest('[data-lb-preset]');
+        if (direct) return direct;
+        var menu = el.closest('[data-lb-preset-menu]');
+        if (!menu || !menu.id) return null;
+        return document.querySelector('[data-lb-preset-menu-id="' + menu.id + '"]');
     }
 
     document.addEventListener('click', function (e) {
@@ -403,7 +657,8 @@
         var applyBtn = e.target.closest && e.target.closest('[data-lb-preset-apply]');
         if (applyBtn && !e.target.closest('[data-lb-preset-delete]')) {
             e.preventDefault();
-            var root = applyBtn.closest('[data-lb-preset]');
+            var root = rootForEvent(applyBtn);
+            if (!root) return;
             var scope = root.getAttribute('data-lb-preset') || 'default';
             var list = readPresets(scope);
             var i = Number(applyBtn.getAttribute('data-lb-preset-apply'));
@@ -418,7 +673,8 @@
         if (deleteBtn) {
             e.preventDefault();
             e.stopPropagation();
-            var root = deleteBtn.closest('[data-lb-preset]');
+            var root = rootForEvent(deleteBtn);
+            if (!root) return;
             var scope = root.getAttribute('data-lb-preset') || 'default';
             var list = readPresets(scope);
             var i = Number(deleteBtn.getAttribute('data-lb-preset-delete'));
@@ -433,7 +689,8 @@
         var saveBtn = e.target.closest && e.target.closest('[data-lb-preset-save]');
         if (saveBtn) {
             e.preventDefault();
-            var root = saveBtn.closest('[data-lb-preset]');
+            var root = rootForEvent(saveBtn);
+            if (!root) return;
             var scope = root.getAttribute('data-lb-preset') || 'default';
             var suggested = scope.charAt(0).toUpperCase() + scope.slice(1) + ' · ' + new Date().toLocaleDateString();
             var name;
@@ -444,18 +701,63 @@
             list.push({ name: name, query: query, createdAt: Date.now() });
             writePresets(scope, list);
             renderPresetList(root);
+            openPreset(root, false); // close menu so user sees the save
             return;
         }
 
-        // Clicks outside any preset root close open menus.
+        // Clicks outside any preset root/menu close open menus.
         document.querySelectorAll('[data-lb-preset][data-open="true"]').forEach(function (r) {
-            if (!e.target.closest || !e.target.closest('[data-lb-preset]')) openPreset(r, false);
+            var inRoot = e.target.closest && e.target.closest('[data-lb-preset]');
+            var inMenu = e.target.closest && e.target.closest('[data-lb-preset-menu]');
+            if (!inRoot && !inMenu) openPreset(r, false);
         });
     });
 
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Escape') return;
         document.querySelectorAll('[data-lb-preset][data-open="true"]').forEach(function (r) { openPreset(r, false); });
+    });
+
+    // ------------------------------------------------------
+    // 6b. Utility page: filter form — strip empty params on submit
+    // ------------------------------------------------------
+    // Disables empty <input>/<select> controls before the browser
+    // serializes the form so the resulting URL is `?level=error`
+    // instead of `?from=&to=&level=error&channel=&q=`. Empty values
+    // round-trip into the model anyway, but a clean URL is easier to
+    // share and to spot in the address bar.
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!form || !form.matches || !form.matches('[data-lb-filter-form]')) return;
+
+        var controls = form.querySelectorAll('input[name], select[name]');
+        controls.forEach(function (el) {
+            // Skip type=hidden — those carry preserved state (sort/dir).
+            if (el.type === 'hidden') return;
+            var value = el.value;
+            if (value === '' || value === null) {
+                el.disabled = true; // disabled controls aren't submitted
+            }
+        });
+    });
+
+    // ------------------------------------------------------
+    // 6c. Utility page: per-page selector — auto-submit on change
+    // ------------------------------------------------------
+    // The footer form lives outside the main filter form (so changing
+    // page size doesn't reset the user's unsaved filter inputs to
+    // whatever is currently in the URL). We submit it immediately on
+    // `change` so there's no "Apply" button to hunt for.
+    document.addEventListener('change', function (e) {
+        var select = e.target;
+        if (!select || !select.matches || !select.matches('[data-lb-perpage-select]')) return;
+        var form = select.closest('[data-lb-perpage-form]');
+        if (!form) return;
+        if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+        } else {
+            form.submit();
+        }
     });
 
     // ------------------------------------------------------

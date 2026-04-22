@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use EmranAlhaddad\StatamicLogbook\Support\DbConnectionResolver;
+use EmranAlhaddad\StatamicLogbook\Support\UserPrefsRepository;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Http\Request;
 use Throwable;
@@ -40,7 +41,9 @@ class LogbookUtilityController
             'desc'
         );
 
-        $logs = $q->orderBy($sort, $dir)->orderByDesc('id')->paginate(50)->withQueryString();
+        $perPage = $this->resolvePerPage($request);
+
+        $logs = $q->orderBy($sort, $dir)->orderByDesc('id')->paginate($perPage)->withQueryString();
 
         $levels = DB::connection($conn)->table('logbook_system_logs')
             ->select('level')->distinct()->orderBy('level')->pluck('level')->all();
@@ -57,6 +60,8 @@ class LogbookUtilityController
             'channels' => $channels,
             'sort' => $sort,
             'dir'  => $dir,
+            'perPage' => $perPage,
+            'perPageOptions' => $this->perPageOptions(),
         ]);
     }
 
@@ -100,7 +105,9 @@ class LogbookUtilityController
             'desc'
         );
 
-        $logs = $q->orderBy($sort, $dir)->orderByDesc('id')->paginate(50)->withQueryString();
+        $perPage = $this->resolvePerPage($request);
+
+        $logs = $q->orderBy($sort, $dir)->orderByDesc('id')->paginate($perPage)->withQueryString();
 
         $actions = DB::connection($conn)->table('logbook_audit_logs')
             ->select('action')->distinct()->orderBy('action')->pluck('action')->all();
@@ -118,6 +125,8 @@ class LogbookUtilityController
             'subjects' => $subjects,
             'sort' => $sort,
             'dir'  => $dir,
+            'perPage' => $perPage,
+            'perPageOptions' => $this->perPageOptions(),
         ]);
     }
 
@@ -317,6 +326,27 @@ class LogbookUtilityController
     }
 
     /**
+     * Allowed per-page options for the utility tables. Kept tight so the
+     * server never has to deal with arbitrary user-supplied bounds.
+     *
+     * @return array<int,int>
+     */
+    protected function perPageOptions(): array
+    {
+        return [25, 50, 100, 200];
+    }
+
+    /**
+     * Clamp `per_page` request input to the allowed set, defaulting to 50.
+     */
+    protected function resolvePerPage(Request $request): int
+    {
+        $raw = (int) $request->get('per_page', 50);
+        $allowed = $this->perPageOptions();
+        return in_array($raw, $allowed, true) ? $raw : 50;
+    }
+
+    /**
      * Resolve a safe sort column / direction pair from request input.
      *
      * @param  array<int,string>  $allowed
@@ -475,6 +505,103 @@ class LogbookUtilityController
         }, 200, $headers);
     }
 
+    /**
+     * Read one or all keys of the current user's logbook prefs.
+     *
+     *   GET /utilities/logbook/prefs            → { prefs: {...} }
+     *   GET /utilities/logbook/prefs/{key}      → { key, value }
+     *
+     * Unauthenticated / missing user → 403 so the client falls back to
+     * localStorage gracefully. Table unavailable → {} (empty).
+     */
+    public function getPrefs(Request $request, ?string $key = null): JsonResponse
+    {
+        $userId = $this->currentUserId();
+        if ($userId === null) {
+            return response()->json(['ok' => false, 'message' => 'Not authenticated.'], 403);
+        }
+
+        if ($key === null) {
+            return response()->json([
+                'ok' => true,
+                'prefs' => UserPrefsRepository::all($userId),
+            ]);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'key' => $key,
+            'value' => UserPrefsRepository::get($userId, $key),
+        ]);
+    }
+
+    /**
+     * Write a single pref key. Body: { value: <any JSON> }.
+     *
+     *   PUT /utilities/logbook/prefs/{key}
+     *
+     * Values are JSON-serialised server-side so callers can post
+     * nested arrays/objects directly — e.g. a list of saved filter
+     * presets — without any client-side encoding.
+     */
+    public function setPref(Request $request, string $key): JsonResponse
+    {
+        $userId = $this->currentUserId();
+        if ($userId === null) {
+            return response()->json(['ok' => false, 'message' => 'Not authenticated.'], 403);
+        }
+
+        $trimmedKey = trim($key);
+        if ($trimmedKey === '' || strlen($trimmedKey) > 64) {
+            return response()->json(['ok' => false, 'message' => 'Invalid key.'], 422);
+        }
+
+        $ok = UserPrefsRepository::set($userId, $trimmedKey, $request->input('value'));
+
+        if (! $ok) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Preference storage unavailable — logbook_user_prefs table may be missing. Run: php artisan logbook:install',
+            ], 503);
+        }
+
+        return response()->json(['ok' => true, 'key' => $trimmedKey]);
+    }
+
+    /**
+     * Remove a single pref key. Useful for "reset density" / "clear
+     * saved presets" UI affordances.
+     */
+    public function forgetPref(Request $request, string $key): JsonResponse
+    {
+        $userId = $this->currentUserId();
+        if ($userId === null) {
+            return response()->json(['ok' => false, 'message' => 'Not authenticated.'], 403);
+        }
+
+        $ok = UserPrefsRepository::forget($userId, $key);
+        return response()->json(['ok' => $ok, 'key' => $key]);
+    }
+
+    /**
+     * Resolve the current CP user's id as a string, or null if not
+     * authenticated. Statamic user ids are UUID-like strings.
+     */
+    protected function currentUserId(): ?string
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return null;
+        }
+
+        $id = method_exists($user, 'id') ? $user->id() : ($user->id ?? null);
+        if (! is_string($id) && ! is_int($id)) {
+            return null;
+        }
+        $id = (string) $id;
+        return $id === '' ? null : $id;
+    }
+
     public function runPrune(Request $request): JsonResponse
     {
         return $this->runCommand('logbook:prune');
@@ -489,7 +616,7 @@ class LogbookUtilityController
     {
         try {
             $exitCode = Artisan::call($command);
-            $output = trim((string) Artisan::output());
+            $output = $this->scrubPaths(trim((string) Artisan::output()));
 
             if ($exitCode === 0) {
                 return response()->json([
@@ -511,11 +638,43 @@ class LogbookUtilityController
         } catch (Throwable $e) {
             return response()->json([
                 'ok' => false,
-                'message' => $e->getMessage(),
+                'message' => $this->scrubPaths($e->getMessage()),
                 'command' => $command,
                 'output' => '',
             ], 500);
         }
+    }
+
+    /**
+     * Strip server-side filesystem paths from any string that may end up in
+     * the Control Panel. Console commands go through `Artisan::output()` and
+     * top-level exceptions surface `$e->getMessage()`, both of which can
+     * embed absolute paths, stack frames, or `/var/www/...`-style roots from
+     * Laravel's own error messages. Anything matching a path-like pattern is
+     * replaced with its basename so operators still have enough to grep
+     * logs, without exposing server layout to CP users.
+     */
+    protected function scrubPaths(string $text): string
+     {
+         if ($text === '') {
+             return $text;
+         }
+
+        // POSIX-style absolute paths with at least two segments:
+        //   /a/b/c/file.ext → file.ext
+        //   /tmp/foo.log    → foo.log
+        $text = preg_replace_callback(
+            '#(?:/[^/\s"\'<>:()]+){1,}/([^/\s"\'<>:()]+)#',
+            static fn (array $m): string => $m[1],
+            $text
+        ) ?? $text;
+
+        // Windows-style paths: C:\a\b\file.ext → file.ext
+        return preg_replace_callback(
+            '#[A-Za-z]:(?:\\\\[^\\\\\s"\'<>:()]+){1,}\\\\([^\\\\\s"\'<>:()]+)#',
+            static fn (array $m): string => $m[1],
+            $text
+        ) ?? $text;
     }
 
     protected function systemStats(string $conn): array

@@ -104,7 +104,7 @@ class LogbookServiceProvider extends AddonServiceProvider
      * @var list<string>
      */
     protected $stylesheets = [
-        __DIR__ . '/../resources/dist/statamic-logbook.css',
+        __DIR__ . '/../resources/dist/statamic-logbook.min.css',
     ];
 
     /**
@@ -130,7 +130,7 @@ class LogbookServiceProvider extends AddonServiceProvider
      * @var list<string>
      */
     protected $scripts = [
-        __DIR__ . '/../resources/dist/statamic-logbook.js',
+        __DIR__ . '/../resources/dist/statamic-logbook.min.js',
     ];
 
     public function register(): void
@@ -379,6 +379,25 @@ class LogbookServiceProvider extends AddonServiceProvider
 
                     $router->post('/actions/flush-spool', [LogbookUtilityController::class, 'runFlushSpool'])
                         ->name('actions.flush-spool')
+                        ->middleware('can:view logbook');
+
+                    // F9: per-user preference sync. Endpoints are scoped
+                    // to the authenticated user; the repository stores
+                    // values in the logbook DB (see UserPrefsRepository).
+                    $router->get('/prefs', [LogbookUtilityController::class, 'getPrefs'])
+                        ->name('prefs.index')
+                        ->middleware('can:view logbook');
+
+                    $router->get('/prefs/{key}', [LogbookUtilityController::class, 'getPrefs'])
+                        ->name('prefs.show')
+                        ->middleware('can:view logbook');
+
+                    $router->put('/prefs/{key}', [LogbookUtilityController::class, 'setPref'])
+                        ->name('prefs.update')
+                        ->middleware('can:view logbook');
+
+                    $router->delete('/prefs/{key}', [LogbookUtilityController::class, 'forgetPref'])
+                        ->name('prefs.forget')
                         ->middleware('can:view logbook');
                 });
         });
