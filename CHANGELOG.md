@@ -21,10 +21,22 @@ dedicated `1.x` LTS branch.
   is now registered via `$stylesheets` on `LogbookServiceProvider` and
   auto-injected into the CP `<head>` by Statamic. All widget and utility
   view styles (cards, feed rows, pill filters, stacked bar chart, level/
-  action badges) are now addon-owned under the `lb-*` namespace and no
-  longer depend on Tailwind utilities that the host CP's JIT build may
-  have purged. Run `php artisan vendor:publish --tag=logbook` after
-  install (Statamic auto-runs this on `statamic:install`).
+  action badges, buttons, cards, inputs, tabs, tables, modal) are now
+  addon-owned under the `lb-*` namespace and no longer depend on Tailwind
+  utilities that the host CP's JIT build may have purged, nor on CP
+  component classes (`.btn`, `.btn-primary`, `.card`, `.input-text`,
+  `.data-table`) that Statamic 6 stripped of their visual surface. Run
+  `php artisan vendor:publish --tag=logbook` after install (Statamic
+  auto-runs this on `statamic:install`).
+* **Self-contained CP script.** `resources/dist/statamic-logbook.js` is
+  registered via `$scripts` on `LogbookServiceProvider` and auto-injected
+  into the CP `<head>`. It installs document-level delegated listeners
+  for the pulse widget's filter pills, the utility page's Prune / Flush
+  Spool CTAs and the context / changes / request modal viewer. This is
+  required because Statamic 6's `DynamicHtmlRenderer` compiles widget
+  HTML through `defineComponent({ template: widget.html })`, and Vue's
+  template compiler strips `<script>` tags (even under `v-pre`), so
+  scripts embedded in widget Blade never execute.
 * **`Audit\EventMap`**: a per-major curated event registry (majors 3–6) that
   resolves the running Statamic major from `Statamic::version()` or
   `vendor/composer/installed.json` and returns only the event classes that
@@ -112,6 +124,27 @@ dedicated `1.x` LTS branch.
   now independent of the host CP's compiled Tailwind surface. This fixes
   rendering on Statamic 6 and hardens us against future CP Tailwind
   config changes on 4 / 5.
+* **Pulse widget filter pills ignoring clicks on Statamic 6.** The pills
+  wired themselves up via a `<script>` tag inside the widget Blade. On
+  Statamic 6 that script never executed because the CP renders widget
+  HTML through `DynamicHtmlRenderer` (`defineComponent({ template })`)
+  and Vue's template compiler strips every `<script>` tag. The filter
+  logic (plus the command / modal handlers on the utility page) now lives
+  in `resources/dist/statamic-logbook.js`, registered via `$scripts` on
+  `LogbookServiceProvider` and loaded into the CP `<head>` outside the
+  Vue-compiled widget subtree.
+* **Error-card badge overlap.** The "Attention" / "OK" pill in the errors
+  card no longer collides with the numeric value — both states now share
+  the same absolutely positioned top-right anchor so the card height is
+  stable between states.
+* **Utility page chrome (buttons, card box, inputs, tabs, table).** On
+  Statamic 6 the legacy CP component classes `.btn`, `.btn-primary`,
+  `.card`, `.input-text`, `.data-table` lost most of their visual
+  surface (e.g. `.btn` became a `margin-right: 15px` utility). The
+  utility page now uses `.lb-btn`, `.lb-btn--primary`, `.lb-box`,
+  `.lb-input`, `.lb-tabs`, `.lb-table`, `.lb-stat`, `.lb-modal__*`
+  component classes from our shipped stylesheet, with explicit
+  light/dark variants throughout.
 
 ### Removed
 

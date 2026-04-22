@@ -107,6 +107,32 @@ class LogbookServiceProvider extends AddonServiceProvider
         __DIR__ . '/../resources/dist/statamic-logbook.css',
     ];
 
+    /**
+     * CP scripts to ship with the addon.
+     *
+     * Ships the document-level click/keydown delegation that powers:
+     *   - the pulse widget's filter pills,
+     *   - the utility page's Prune / Flush Spool CTA handlers,
+     *   - the utility page's modal viewer for context / changes / request
+     *     details.
+     *
+     * This MUST be registered via $scripts (not inlined inside widget
+     * Blade) because Statamic 6's dashboard renders widget HTML through
+     * `DynamicHtmlRenderer` — essentially
+     * `defineComponent({ template: widget.html })`. Vue's template
+     * compiler strips all `<script>` tags before compilation, regardless
+     * of `v-pre`, so any script embedded in widget HTML never runs on v6.
+     *
+     * Statamic auto-publishes the file to
+     * `public/vendor/{package}/js/{filename}.js` and registers it via
+     * `Statamic::script()` so it is included in the CP `<head>`.
+     *
+     * @var list<string>
+     */
+    protected $scripts = [
+        __DIR__ . '/../resources/dist/statamic-logbook.js',
+    ];
+
     public function register(): void
     {
         parent::register();

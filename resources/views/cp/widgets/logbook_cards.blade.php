@@ -29,12 +29,12 @@
             </div>
 
             <div class="lb-card lb-card--danger">
-                <p class="lb-card__label lb-card__label--danger">Errors · 24h</p>
                 @if($systemErrors24h > 0)
                     <span class="lb-card__badge lb-card__badge--danger">Attention</span>
                 @else
                     <span class="lb-card__badge lb-card__badge--ok">OK</span>
                 @endif
+                <p class="lb-card__label lb-card__label--danger">Errors · 24h</p>
                 <p class="lb-card__value">{{ $systemErrors24h }}</p>
                 <p class="lb-card__meta lb-card__meta--danger">
                     @if($systemTotal24h > 0)

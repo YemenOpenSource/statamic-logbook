@@ -1,152 +1,130 @@
 @extends('statamic-logbook::cp.logbook._layout', ['active' => 'audit'])
 
 @php
-$b64 = fn($v) => base64_encode((string) $v);
+    $b64 = fn($v) => base64_encode((string) $v);
 
-$actionColor = fn($a) => match (true) {
-str_contains((string)$a, 'deleted') => 'lb-badge lb-badge--delete',
-str_contains((string)$a, 'created') => 'lb-badge lb-badge--create',
-str_contains((string)$a, 'updated') || str_contains((string)$a, 'saved') => 'lb-badge lb-badge--update',
-default => 'lb-badge lb-badge--muted'
-};
+    $actionColor = fn($a) => match (true) {
+        str_contains((string) $a, 'deleted')                                             => 'lb-badge lb-badge--delete',
+        str_contains((string) $a, 'created')                                             => 'lb-badge lb-badge--create',
+        str_contains((string) $a, 'updated') || str_contains((string) $a, 'saved')      => 'lb-badge lb-badge--update',
+        default                                                                          => 'lb-badge lb-badge--muted',
+    };
 @endphp
-
-<style>
-    #main .page-wrapper {
-        max-width: 100% !important;
-    }
-
-    .footer-pagination nav {
-        display: flex;
-        flex-direction: column;
-        gap: 25px;
-        margin-top: 40px;
-    }
-
-    .footer-pagination nav > :nth-child(2)  {
-        gap: 10%;
-        align-items: center;
-    }
-</style>
 
 @section('panel')
 @if(isset($stats))
-<div class="flex flex-col md:flex-row gap-3 mb-4">
-    <div class="card p-3 flex-1">
-        <div class="text-xs text-gray-600">Last 24h</div>
-        <div class="text-2xl font-semibold mt-1">{{ $stats['total_24h'] ?? 0 }}</div>
-        <div class="text-xs text-gray-600 mt-1">Total audit actions</div>
+<div class="lb-stat-grid">
+    <div class="lb-stat">
+        <p class="lb-stat__label">Last 24h</p>
+        <p class="lb-stat__value">{{ $stats['total_24h'] ?? 0 }}</p>
+        <p class="lb-stat__meta">Total audit actions</p>
     </div>
 
-    <div class="card p-3 flex-1">
-        <div class="text-xs text-gray-600">Top actions (7d)</div>
-        <div class="mt-2 space-y-1">
+    <div class="lb-stat">
+        <p class="lb-stat__label">Top actions (7d)</p>
+        <div class="lb-stat__breakdown">
             @forelse(($stats['top_actions_7d'] ?? []) as $it)
-            <div class="flex justify-between text-xs">
-                <span class="font-mono truncate" title="{{ $it['action'] }}">{{ $it['action'] }}</span>
-                <span class="text-gray-700">{{ $it['count'] }}</span>
-            </div>
+                <div class="lb-stat__breakdown-row">
+                    <span class="lb-stat__breakdown-key" title="{{ $it['action'] }}">{{ $it['action'] }}</span>
+                    <span class="lb-stat__breakdown-val">{{ $it['count'] }}</span>
+                </div>
             @empty
-            <div class="text-xs text-gray-600">—</div>
+                <div class="lb-stat__breakdown-val">—</div>
             @endforelse
         </div>
     </div>
 
-    <div class="card p-3">
-        <div class="text-xs text-gray-600">Top users (7d)</div>
-        <div class="mt-2 space-y-1">
+    <div class="lb-stat">
+        <p class="lb-stat__label">Top users (7d)</p>
+        <div class="lb-stat__breakdown">
             @forelse(($stats['top_users_7d'] ?? []) as $it)
-            <div class="flex justify-between text-xs">
-                <span class="truncate" title="{{ $it['user'] }}">{{ $it['user'] }}</span>
-                <span class="text-gray-700">{{ $it['count'] }}</span>
-            </div>
+                <div class="lb-stat__breakdown-row">
+                    <span class="truncate" title="{{ $it['user'] }}">{{ $it['user'] }}</span>
+                    <span class="lb-stat__breakdown-val">{{ $it['count'] }}</span>
+                </div>
             @empty
-            <div class="text-xs text-gray-600">—</div>
+                <div class="lb-stat__breakdown-val">—</div>
             @endforelse
         </div>
     </div>
 </div>
 @endif
 
-<form method="GET" class="mb-4">
-    <div class="flex flex-col gap-2  w-full">
-        <div class="flex flex-row gap-2 items-end flex-1 min-w-[240px]">
-            <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="input-text lb-field-sm">
-            <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="input-text lb-field-sm">
-        </div>
-        <div class="flex flex-col gap-2 items-end flex-1 min-w-[240px]">
-            <select name="action" class="input-text w-56">
-                <option value="">All actions</option>
-                @foreach($actions as $a)
-                <option value="{{ $a }}" @selected(($filters['action'] ?? '' )===$a)>{{ $a }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="flex gap-2">
-            <input type="text" name="q" value="{{ $filters['q'] ?? '' }}"
-                class="input-text flex-1 min-w-[220px]" placeholder="Search message">
-            <button class="btn-primary flex gap-1" type="submit">🔍 Apply</button>
-            <a class="btn flex gap-1" href="{{ cp_route('utilities.logbook.system') }}">♻ Reset</a>
-            <a class="btn" href="{{ cp_route('utilities.logbook.system.export', request()->query()) }}">⬇ Export CSV</a>
-        </div>
+<form method="GET" class="lb-filter">
+    <div class="lb-filter__row">
+        <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="lb-input lb-field-sm" aria-label="From date">
+        <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="lb-input lb-field-sm" aria-label="To date">
+        <select name="action" class="lb-input lb-field-md" aria-label="Action">
+            <option value="">All actions</option>
+            @foreach($actions as $a)
+                <option value="{{ $a }}" @selected(($filters['action'] ?? '') === $a)>{{ $a }}</option>
+            @endforeach
+        </select>
+    </div>
+    <div class="lb-filter__row">
+        <input type="text"
+               name="q"
+               value="{{ $filters['q'] ?? '' }}"
+               class="lb-input lb-filter__search"
+               placeholder="Search message">
+        <button class="lb-btn lb-btn--primary" type="submit">Apply</button>
+        <a class="lb-btn" href="{{ cp_route('utilities.logbook.audit') }}">Reset</a>
+        <a class="lb-btn" href="{{ cp_route('utilities.logbook.audit.export', request()->query()) }}">Export CSV</a>
     </div>
 </form>
 
-<div class="card p-0 overflow-x-auto">
-    <table class="data-table">
+<div class="lb-box lb-box--scroll-x">
+    <table class="lb-table">
         <thead>
             <tr>
                 <th>Time</th>
                 <th>Action</th>
                 <th>Subject</th>
                 <th>User</th>
-                <th class="w-[140px]">Changes</th>
+                <th style="width: 140px;">Changes</th>
             </tr>
         </thead>
         <tbody>
             @forelse($logs as $row)
-            <tr>
-                <td class="text-xs whitespace-nowrap">{{ $row->created_at }}</td>
-
-                <td>
-                    <span class="{{ $actionColor($row->action) }}">
-                        {{ $row->action }}
-                    </span>
-                </td>
-
-                <td>
-                    <div class="font-medium">{{ $row->subject_title ?? $row->subject_handle }}</div>
-                    <div class="text-xs text-gray-600">{{ $row->subject_type }} · {{ $row->subject_id }}</div>
-                </td>
-
-                <td class="text-xs">{{ $row->user_email ?? $row->user_id ?? '—' }}</td>
-
-                <td>
-                    @if($row->changes)
-                    @php
-                    $payload = json_encode(json_decode($row->changes, true), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-                    $subtitle = ($row->action ?? '').' • '.($row->subject_type ?? '');
-                    @endphp
-                    <button
-                        type="button"
-                        class="btn"
-                        onclick="__logbookOpenModal('Audit Changes', '{{ $b64($payload) }}', '{{ addslashes($subtitle) }}')"
-                        title="View changes">🧠 View</button>
-                    @else
-                    <span class="text-xs text-gray-500">—</span>
-                    @endif
-                </td>
-            </tr>
+                <tr>
+                    <td class="lb-table__time">{{ $row->created_at }}</td>
+                    <td>
+                        <span class="{{ $actionColor($row->action) }}">
+                            {{ $row->action }}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="font-weight: 500;">{{ $row->subject_title ?? $row->subject_handle }}</div>
+                        <div class="lb-table__muted">{{ $row->subject_type }} · {{ $row->subject_id }}</div>
+                    </td>
+                    <td class="lb-table__muted">{{ $row->user_email ?? $row->user_id ?? '—' }}</td>
+                    <td>
+                        @if($row->changes)
+                            @php
+                                $payload  = json_encode(json_decode($row->changes, true), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                                $subtitle = ($row->action ?? '').' · '.($row->subject_type ?? '');
+                            @endphp
+                            <button type="button"
+                                    class="lb-btn"
+                                    data-lb-modal-title="Audit Changes"
+                                    data-lb-modal-payload="{{ $b64($payload) }}"
+                                    data-lb-modal-subtitle="{{ $subtitle }}"
+                                    title="View changes">View</button>
+                        @else
+                            <span class="lb-table__muted">—</span>
+                        @endif
+                    </td>
+                </tr>
             @empty
-            <tr>
-                <td colspan="5" class="p-4 text-gray-600">No audit logs found.</td>
-            </tr>
+                <tr>
+                    <td colspan="5" class="lb-table__muted" style="text-align: center; padding: 1.25rem;">No audit logs found.</td>
+                </tr>
             @endforelse
         </tbody>
     </table>
 </div>
 
 @if(method_exists($logs, 'links'))
-<div class="mt-4 footer-pagination">{{ $logs->withQueryString()->links() }}</div>
+    <div class="lb-pagination">{{ $logs->withQueryString()->links() }}</div>
 @endif
 @endsection

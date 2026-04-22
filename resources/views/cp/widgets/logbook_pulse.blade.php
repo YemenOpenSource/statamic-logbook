@@ -79,34 +79,9 @@
         @endforelse
     </div>
 </div>
-
-<script>
-(function () {
-    if (window.__logbookPulseFilterBound) return;
-    window.__logbookPulseFilterBound = true;
-
-    // Pulse widget filters (event delegation — works for dynamically rendered widget HTML).
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('[data-lb-filter]');
-        if (!btn) return;
-        const root = btn.closest('.logbook-pulse-root');
-        if (!root) return;
-        const mode = btn.getAttribute('data-lb-filter') || 'all';
-        const rows = root.querySelectorAll('.logbook-pulse-row');
-        const btns = root.querySelectorAll('[data-lb-filter]');
-        rows.forEach(function (el) {
-            const t = el.getAttribute('data-lb-type');
-            const s = el.getAttribute('data-lb-sev');
-            let show = false;
-            if (mode === 'all') show = true;
-            else if (mode === 'errors') show = (s === 'error');
-            else if (mode === 'audit') show = (t === 'audit');
-            else if (mode === 'info') show = (t === 'system' && s === 'info');
-            el.classList.toggle('lb-hidden', !show);
-        });
-        btns.forEach(function (b) {
-            b.classList.toggle('lb-pill--active', b === btn);
-        });
-    });
-})();
-</script>
+{{--
+    Filter interaction handled by the addon-shipped
+    resources/dist/statamic-logbook.js (loaded via $scripts on
+    LogbookServiceProvider). Inline <script> tags inside widget
+    HTML are stripped by Statamic 6's Vue DynamicHtmlRenderer.
+--}}

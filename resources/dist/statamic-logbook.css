@@ -286,7 +286,353 @@
 
 /* ---------- narrow form helpers (arbitrary widths) ---------- */
 
-.lb-field-sm { width: 10rem; }
-.lb-field-md { width: 14rem; }
+.lb-field-sm { width: 10rem; max-width: 100%; }
+.lb-field-md { width: 14rem; max-width: 100%; }
 .lb-message-cell { max-width: 720px; }
+
+/* ---------- card layout fix: absolutely positioned status badge ---------- */
+/*
+ * The error card carries either an Attention pill (problem) or a
+ * muted OK pill (all clear). Keep them absolutely anchored to the
+ * card's top-right corner so the $systemErrors24h value sits on its
+ * own baseline and the card never "jumps" between the two states.
+ */
+.lb-card { padding-top: 1.25rem; }
+.lb-card__badge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1;
+}
+.lb-card__badge--danger,
+.lb-card__badge--ok { /* override the flow positioning we previously set */
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    margin: 0;
+}
+
+/* ---------- utility page chrome (CP component fallbacks) ---------- */
+/*
+ * Statamic 6 stripped the legacy CP CSS surface — `.btn` now only
+ * sets a right margin, `.btn-primary` does not exist, and `.card`
+ * only applies a radius. Component chrome on the utility page is
+ * now implemented here with the `lb-*` namespace so the page looks
+ * intentional and theme-aware regardless of host CP version.
+ */
+
+.lb-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+.lb-toolbar__titles { min-width: 0; }
+.lb-toolbar__title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #19292f;
+    margin: 0 0 0.25rem;
+    line-height: 1.2;
+}
+.lb-toolbar__sub {
+    font-size: 13px;
+    color: #73808c;
+    margin: 0;
+}
+.lb-toolbar__actions { display: flex; gap: 0.5rem; flex-shrink: 0; flex-wrap: wrap; }
+
+.dark .lb-toolbar__title { color: #dfe1e5; }
+.dark .lb-toolbar__sub { color: #93979a; }
+
+.lb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.5rem;
+    border: 1px solid #dde3e9;
+    background: #fff;
+    color: #19292f;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    text-decoration: none;
+    font-family: inherit;
+    white-space: nowrap;
+}
+.lb-btn:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: #f5f8fc;
+    border-color: #a7b3be;
+    text-decoration: none;
+    color: #19292f;
+}
+.lb-btn:disabled,
+.lb-btn[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; }
+
+.lb-btn--primary { background: #43a9ff; border-color: #43a9ff; color: #fff; }
+.lb-btn--primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: #298fe6;
+    border-color: #298fe6;
+    color: #fff;
+}
+
+.dark .lb-btn {
+    background: #242628;
+    border-color: #3b3f41;
+    color: #dfe1e5;
+}
+.dark .lb-btn:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: #2b2d30;
+    border-color: #5f6163;
+    color: #dfe1e5;
+}
+.dark .lb-btn--primary { background: #43a9ff; border-color: #43a9ff; color: #fff; }
+.dark .lb-btn--primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: #298fe6;
+    border-color: #298fe6;
+}
+
+.lb-box {
+    background: #fff;
+    border: 1px solid #dde3e9;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+.lb-box--pad { padding: 1rem; }
+.lb-box--scroll-x { overflow-x: auto; }
+.dark .lb-box { background: #1e1f22; border-color: #171717; }
+
+.lb-tabs {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0 1rem;
+    border-bottom: 1px solid #dde3e9;
+    background: #f5f8fc;
+}
+.lb-tab {
+    position: relative;
+    padding: 0.85rem 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #73808c;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+.lb-tab:hover { color: #19292f; text-decoration: none; }
+.lb-tab--active { color: #43a9ff; font-weight: 600; }
+.lb-tab--active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: #43a9ff;
+    border-radius: 999px;
+}
+.dark .lb-tabs { background: #242628; border-bottom-color: #171717; }
+.dark .lb-tab { color: #93979a; }
+.dark .lb-tab:hover { color: #dfe1e5; }
+.dark .lb-tab--active { color: #43a9ff; }
+
+.lb-input {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid #dde3e9;
+    background: #fff;
+    color: #19292f;
+    font-size: 13px;
+    line-height: 1.3;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 100%;
+}
+.lb-input:focus { border-color: #43a9ff; box-shadow: 0 0 0 3px rgba(67,169,255,0.2); }
+.lb-input::placeholder { color: #a7b3be; }
+.dark .lb-input { background: #242628; border-color: #3b3f41; color: #dfe1e5; }
+.dark .lb-input:focus { border-color: #43a9ff; box-shadow: 0 0 0 3px rgba(67,169,255,0.35); }
+.dark .lb-input::placeholder { color: #5f6163; }
+
+.lb-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.lb-stat {
+    background: #fff;
+    border: 1px solid #dde3e9;
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+}
+.lb-stat__label { font-size: 11px; color: #73808c; margin: 0; }
+.lb-stat__value {
+    font-size: 22px;
+    font-weight: 600;
+    color: #19292f;
+    margin: 0.25rem 0;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+.lb-stat__meta { font-size: 11px; color: #73808c; margin: 0; }
+.lb-stat__breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+    font-size: 12px;
+}
+.lb-stat__breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+.lb-stat__breakdown-key { font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.lb-stat__breakdown-val { color: #73808c; }
+
+.dark .lb-stat { background: #1e1f22; border-color: #171717; }
+.dark .lb-stat__label,
+.dark .lb-stat__meta,
+.dark .lb-stat__breakdown-val { color: #93979a; }
+.dark .lb-stat__value { color: #dfe1e5; }
+
+.lb-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lb-table thead th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #73808c;
+    font-weight: 600;
+    border-bottom: 1px solid #dde3e9;
+    background: #f5f8fc;
+    white-space: nowrap;
+}
+.lb-table tbody td {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #eef2f6;
+    color: #19292f;
+    vertical-align: top;
+}
+.lb-table tbody tr:hover { background: #f5f8fc; }
+.lb-table__time { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 12px; color: #354248; }
+.lb-table__muted { color: #73808c; font-size: 12px; }
+
+.dark .lb-table thead th { background: #242628; border-bottom-color: #171717; color: #93979a; }
+.dark .lb-table tbody td { border-top-color: #171717; color: #dfe1e5; }
+.dark .lb-table tbody tr:hover { background: #22242a; }
+.dark .lb-table__time { color: #bbbdc0; }
+.dark .lb-table__muted { color: #93979a; }
+
+.lb-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.lb-filter__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+.lb-filter__search { flex: 1 1 260px; min-width: 220px; }
+
+.lb-pagination {
+    margin-top: 1.25rem;
+}
+.lb-pagination nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+}
+
+.lb-no-scroll { overflow: hidden; }
+
+/* ---------- modal (utility page) ---------- */
+/*
+ * Modal is rendered into #logbook-modal and toggled by the
+ * data-lb-modal-* handlers in statamic-logbook.js. Default state
+ * is hidden via `.lb-hidden` — omitted `display:flex` once shown.
+ */
+#logbook-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    width: 100vw;
+    height: 100vh;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2.5rem 1rem;
+    box-sizing: border-box;
+}
+#logbook-modal .lb-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+}
+#logbook-modal .lb-modal__dialog {
+    position: relative;
+    background: #fff;
+    width: 100%;
+    max-width: 64rem;
+    max-height: 90vh;
+    border-radius: 0.75rem;
+    border: 1px solid #dde3e9;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+#logbook-modal .lb-modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #dde3e9;
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+    background: #f5f8fc;
+}
+#logbook-modal .lb-modal__titles { min-width: 0; flex: 1 1 auto; }
+#logbook-modal .lb-modal__title { font-size: 14px; font-weight: 600; color: #19292f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+#logbook-modal .lb-modal__subtitle { font-size: 12px; color: #73808c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+#logbook-modal .lb-modal__actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+#logbook-modal .lb-modal__body {
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 1rem;
+    overflow: auto;
+    font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #e5e7eb;
+    background: #0b1220;
+}
+
+.dark #logbook-modal .lb-modal__dialog {
+    background: #1e1f22;
+    border-color: #171717;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6);
+}
+.dark #logbook-modal .lb-modal__header {
+    background: #242628;
+    border-bottom-color: #171717;
+}
+.dark #logbook-modal .lb-modal__title { color: #dfe1e5; }
+.dark #logbook-modal .lb-modal__subtitle { color: #93979a; }
 
