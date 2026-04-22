@@ -166,6 +166,93 @@
         if (e.key === 'Escape') closeModal();
     });
 
+    // ------------------------------------------------------
+    // 4. Utility page: density toggle (Compact / Cozy / Spacious)
+    // ------------------------------------------------------
+    // Persists user's preference in localStorage and re-applies
+    // on page load. Buttons carry `data-lb-density="<mode>"`.
+    var DENSITY_KEY = 'statamic-logbook.density';
+    var DENSITY_CLASSES = ['lb-table--compact', 'lb-table--spacious'];
+
+    function applyDensity(mode) {
+        var tables = document.querySelectorAll('.lb-page .lb-table');
+        tables.forEach(function (t) {
+            DENSITY_CLASSES.forEach(function (c) { t.classList.remove(c); });
+            if (mode === 'compact')  t.classList.add('lb-table--compact');
+            if (mode === 'spacious') t.classList.add('lb-table--spacious');
+        });
+        var btns = document.querySelectorAll('[data-lb-density]');
+        btns.forEach(function (b) {
+            b.setAttribute('aria-pressed', b.getAttribute('data-lb-density') === mode ? 'true' : 'false');
+        });
+    }
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest && e.target.closest('[data-lb-density]');
+        if (!btn) return;
+        var mode = btn.getAttribute('data-lb-density') || 'comfortable';
+        try { localStorage.setItem(DENSITY_KEY, mode); } catch (_) { /* ignore quota / private mode */ }
+        applyDensity(mode);
+    });
+
+    // Re-apply stored preference on DOMContentLoaded
+    function initDensity() {
+        var mode = 'comfortable';
+        try { mode = localStorage.getItem(DENSITY_KEY) || 'comfortable'; } catch (_) {}
+        applyDensity(mode);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDensity);
+    } else {
+        initDensity();
+    }
+
+    // ------------------------------------------------------
+    // 5. Utility page: keyboard shortcuts
+    // ------------------------------------------------------
+    // `/`      → focus primary filter search input on the page
+    // `g s`    → go to system logs
+    // `g a`    → go to audit logs
+    // Shortcuts are suppressed while typing in form fields.
+    var gLeaderUntil = 0;
+
+    function isEditable(el) {
+        if (!el) return false;
+        if (el.isContentEditable) return true;
+        var tag = (el.tagName || '').toLowerCase();
+        return tag === 'input' || tag === 'textarea' || tag === 'select';
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (isEditable(e.target)) return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+        // `/` → focus search
+        if (e.key === '/') {
+            var search = document.querySelector('.lb-page .lb-filter__search');
+            if (search) {
+                e.preventDefault();
+                search.focus();
+                search.select && search.select();
+            }
+            return;
+        }
+
+        // `g <k>` leader sequence
+        var now = Date.now();
+        if (e.key === 'g') {
+            gLeaderUntil = now + 1200;
+            return;
+        }
+        if (now < gLeaderUntil) {
+            var systemLink = document.querySelector('.lb-tabs a.lb-tab[href*="/logbook/system"]');
+            var auditLink  = document.querySelector('.lb-tabs a.lb-tab[href*="/logbook/audit"]');
+            if (e.key === 's' && systemLink) { e.preventDefault(); window.location.href = systemLink.getAttribute('href'); }
+            if (e.key === 'a' && auditLink)  { e.preventDefault(); window.location.href = auditLink.getAttribute('href'); }
+            gLeaderUntil = 0;
+        }
+    });
+
     function openModal(title, payloadB64, subtitle) {
         var modal = document.getElementById('logbook-modal');
         if (!modal) return;

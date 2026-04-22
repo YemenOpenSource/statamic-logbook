@@ -33,7 +33,14 @@ class LogbookUtilityController
             $q->where('message', 'like', "%{$search}%");
         }
 
-        $logs = $q->orderByDesc('id')->paginate(50)->withQueryString();
+        [$sort, $dir] = $this->resolveSort(
+            $request,
+            ['id', 'created_at', 'level', 'channel', 'user_id'],
+            'id',
+            'desc'
+        );
+
+        $logs = $q->orderBy($sort, $dir)->orderByDesc('id')->paginate(50)->withQueryString();
 
         $levels = DB::connection($conn)->table('logbook_system_logs')
             ->select('level')->distinct()->orderBy('level')->pluck('level')->all();
@@ -48,6 +55,8 @@ class LogbookUtilityController
             'stats' => $stats,
             'levels' => $levels,
             'channels' => $channels,
+            'sort' => $sort,
+            'dir'  => $dir,
         ]);
     }
 
@@ -84,7 +93,14 @@ class LogbookUtilityController
             });
         }
 
-        $logs = $q->orderByDesc('id')->paginate(50)->withQueryString();
+        [$sort, $dir] = $this->resolveSort(
+            $request,
+            ['id', 'created_at', 'action', 'subject_type', 'user_email'],
+            'id',
+            'desc'
+        );
+
+        $logs = $q->orderBy($sort, $dir)->orderByDesc('id')->paginate(50)->withQueryString();
 
         $actions = DB::connection($conn)->table('logbook_audit_logs')
             ->select('action')->distinct()->orderBy('action')->pluck('action')->all();
@@ -100,7 +116,30 @@ class LogbookUtilityController
             'stats' => $stats,
             'actions' => $actions,
             'subjects' => $subjects,
+            'sort' => $sort,
+            'dir'  => $dir,
         ]);
+    }
+
+    /**
+     * Resolve a safe sort column / direction pair from request input.
+     *
+     * @param  array<int,string>  $allowed
+     * @return array{0: string, 1: string}
+     */
+    protected function resolveSort(Request $request, array $allowed, string $default, string $defaultDir = 'desc'): array
+    {
+        $sort = (string) $request->get('sort', $default);
+        if (! in_array($sort, $allowed, true)) {
+            $sort = $default;
+        }
+
+        $dir = strtolower((string) $request->get('dir', $defaultDir));
+        if (! in_array($dir, ['asc', 'desc'], true)) {
+            $dir = $defaultDir;
+        }
+
+        return [$sort, $dir];
     }
 
     public function exportSystemCsv(Request $request): StreamedResponse
