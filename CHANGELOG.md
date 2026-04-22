@@ -9,9 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-The next release (`2.0.0`) adds first-class Statamic 6 support while keeping
-Statamic 4 and 5 working from the same branch. Statamic 3 continues on the
-dedicated `1.x` LTS branch.
+_Nothing queued for the next release yet._
+
+---
+
+## [2.0.0] — 2026-04-22
+
+Adds first-class Statamic 6 support while keeping Statamic 4 and 5 working
+from the same branch. Statamic 3 continues on the dedicated `1.x` LTS branch.
 
 ### Added
 
@@ -80,6 +85,53 @@ dedicated `1.x` LTS branch.
 * **`LogbookUtilityController` endpoints.** `timeline()`, `systemJson()`,
   `auditJson()` back the three new features above, with
   `can:view logbook` middleware.
+* **Error signature panel + last-error-ago chip.** The dashboard overview
+  cards now surface a small "Last error 3h ago" / "No errors in 72h"
+  chip under the errors card, and the widget gains a new
+  "Top error signatures · 24h" section that groups recent errors by a
+  normalised fingerprint (UUIDs, hex blobs, IPs, emails, quoted strings
+  and bare numbers collapse to placeholders) so "User 42 not found" and
+  "User 99 not found" share a single row with a count + last-seen
+  timestamp. Each signature deep-links to the system log pre-filtered
+  by level and a truncated example query.
+* **Busiest-hour card.** The four-up overview replaces the "Error
+  ratio" tile with a "Busiest hour · 24h" card showing the peak count
+  and the local `HH:00` slot it landed in, computed from the existing
+  `systemSpark24h` series so there's no extra DB hit.
+* **7×24 channel heatmap.** `LogbookTrendsWidget` now renders a
+  day-by-day × hour-of-day grid below the existing daily bars, coloured
+  by volume via `color-mix(in srgb, var(--lb-accent) calc(var(--lb-intensity) * 100%), var(--lb-bg-subtle))`
+  with a light/dark-aware base. Cells carry a native tooltip with the
+  exact day, hour and line count.
+* **Meaningful density toggle.** Compact / Cozy / Spacious is no longer
+  a font-size switch — it swaps `.lb-density--{mode}` on the `.lb-page`
+  root and drives padding, typography, clamp behaviour, filter and
+  stat sizing, and secondary-meta visibility at once. Compact hides
+  row meta, forces single-line truncation and shrinks chips + the
+  filter/stat grid; Spacious releases the cell clamp, lets messages
+  wrap, and enlarges the toolbar. Legacy `comfortable` values in
+  localStorage are silently migrated to `cozy`.
+* **Chip-style paginator + per-page selector.** System and audit
+  pages share a new `_pagination.blade.php` partial rendering a
+  result-range readout ("Showing 51 – 100 of 2,431"), a `[25|50|100|200]`
+  per-page dropdown that submits on change (preserving every other
+  query param), and a custom Laravel paginator view (`_paginator.blade.php`)
+  that uses `.lb-pager` chip buttons with Prev/1/2/…/Next and SVG
+  chevrons instead of the default bootstrap-4 markup. `paginate()`
+  now honours the selected per-page value via a new
+  `resolvePerPage(Request)` helper.
+* **`logbook_user_prefs` table + `UserPrefsRepository`.** A new
+  `logbook_user_prefs` table ships with `logbook:install`, stored in
+  the logbook DB (not the project DB) so the addon stays
+  self-contained and a full uninstall is still "drop the logbook
+  database". One row per user, a single JSON `prefs` blob, scalar
+  `key → value` API via `UserPrefsRepository::get()` / `set()` / `all()`
+  / `forget()`. All methods fail soft if the table is missing or the
+  connection is down — the UI continues to use localStorage as a
+  zero-config fallback. Four CP endpoints (`GET /prefs`,
+  `GET /prefs/{key}`, `PUT /prefs/{key}`, `DELETE /prefs/{key}`) are
+  registered under `can:view logbook` for cross-device sync of
+  density, saved presets and per-page defaults.
 
 * **Statamic 6 support.** The addon now boots cleanly on Statamic 6 without
   clobbering the core `statamic.widgets` extension binding.
@@ -119,6 +171,14 @@ dedicated `1.x` LTS branch.
   shim's idempotency.
 * **`orchestra/testbench`** (dev dependency) for future Laravel application
   harness and integration tests.
+* **Pre-minified CP bundles + build harness.** The addon now ships
+  `resources/dist/statamic-logbook.min.css` (~48 KB, down from
+  ~67 KB) and `resources/dist/statamic-logbook.min.js` (~14 KB,
+  down from ~38 KB) alongside the annotated source files, and
+  registers the minified variants via `$stylesheets` / `$scripts`.
+  A lightweight `package.json` with `npm run build` (clean-css-cli
+  + terser) is included so contributors can regenerate the bundles
+  after changing the source files.
 
 ### Changed
 
@@ -137,6 +197,34 @@ dedicated `1.x` LTS branch.
   Statamic-preferred `bootAddon()` hook. Dropped static "already booted"
   flags in favour of container singletons and `Event::hasListeners(...)`
   where idempotency matters.
+* **Human-readable audit actions + inline change hints.** Raw event
+  strings like `statamic.user.saved` / `statamic.entry.saved` /
+  `statamic.user.login` are now presented as "User updated" /
+  "Entry saved" / "User logged in" via a view-layer `AuditActionPresenter`
+  that inspects the action verb + the `changes` JSON to distinguish
+  create / update / delete / login / logout. For `update` events, the
+  audit table renders a truncated "from → to" ribbon below the row
+  summarising the first 1–2 changed fields (e.g. `title: "Old" → "New"`)
+  using the existing `changes` column. Zero schema changes — all
+  derivation is server-side view prep against data already stored.
+* **Live tail is now self-scheduling + adaptive.** Replaced the
+  fixed-interval `setInterval` poll with a `setTimeout` self-chain
+  driven by an `AbortController`. The tick pauses on
+  `visibilitychange` hidden, pauses on `offline`, resumes on `online` /
+  visible, aborts the in-flight request on toggle-off, and cleans up
+  on `pagehide` / `beforeunload`. Backoff is exponential with jitter
+  (5s → 10s → 20s → 40s, capped at 60s) on consecutive errors, and
+  relaxes toward the upper bound when the server returns no new rows
+  for several ticks. Result: four independent mechanisms now reduce
+  server load (visibility, network state, idle relaxation, error
+  backoff) where previously a stalled tab would hammer the endpoint
+  every 5 seconds indefinitely.
+* **Cell truncation on system + audit tables.** Long messages, user
+  ids / emails, action strings and subject titles are now clamped to
+  a single line with a `.lb-cell-clamp` treatment; the full value
+  remains available via the row's JSON modal. Compact density forces
+  the clamp globally; Spacious density releases it so long messages
+  wrap.
 * Minimum `statamic/cms` raised to `^4.0|^5.0|^6.0`. Statamic 3 users must
   use the `1.x` LTS branch.
 * Minimum `illuminate/support` and `illuminate/database` raised to
@@ -225,6 +313,39 @@ dedicated `1.x` LTS branch.
   `#main .page-wrapper:has(.lb-page)`) scoped to logbook pages so the
   override can't bleed into unrelated CP pages.
 
+* **Top spacing on the utility panel.** The `.lb-page` root now carries
+  an explicit top padding step so the CP header no longer butts against
+  the title row on Statamic 6 where the host shell margin collapsed.
+* **Row JSON modal flush against the CP top nav.** `#logbook-modal`
+  used `padding: var(--lb-s-10) var(--lb-s-4)` (40 px top) which on
+  Statamic 6 — where the host shell exposes a two-row breadcrumb +
+  locale bar above the CP content — left the modal header touching
+  the top chrome. The top padding now uses
+  `clamp(5rem, 10vh, 7rem)` so the dialog always clears the host
+  nav regardless of which shell variant is rendered.
+* **"Presets ▾" dropdown not opening.** The dropdown lived inside
+  `<form class="lb-filter--sticky">`, which uses
+  `backdrop-filter: blur(8px)`. Per the CSS spec, `backdrop-filter`
+  creates a containing block for `position: fixed` descendants, so
+  the menu's "fixed" coordinates were being interpreted relative to
+  the toolbar instead of the viewport — landing it off-screen on
+  many layouts. The open/close flow now portals the menu element
+  into `<body>` while it's open (and returns it to its original
+  parent on close), escaping the containing-block trap. Click and
+  keyboard delegation was updated to resolve the preset root via a
+  `data-lb-preset-menu-id` handle rather than DOM ancestry so every
+  Apply / Delete / Save action keeps working across the portal.
+* **Filter dropdowns beside the date pickers not applying.** The
+  level / channel / action / subject `<select>` controls submitted
+  empty `""` values alongside the real filters, which the controller
+  happily round-tripped into the query string. The filter form now
+  carries hidden `sort` / `dir` / `per_page` inputs so those aren't
+  nuked on submit, and a pre-submit handler disables every empty
+  `<select>` / `<input>` so they're stripped from the resulting URL
+  by the browser. Result: filters actually narrow results, the URL
+  stays readable, and sort/per-page state is preserved across filter
+  changes.
+
 ### Removed
 
 * Removed the eager `statamic.widgets` container binding override. The
@@ -236,6 +357,19 @@ dedicated `1.x` LTS branch.
 * Continued strict filtering of event class names before `Event::listen()`
   to avoid untrusted class-loading from the config file.
 * Spool ingestion continues to use `LOCK_EX` on write paths (unchanged).
+* **Server path scrubbing on CP command output.** The Prune / Flush
+  Spool CP actions pipe `Artisan::output()` back to the browser as
+  JSON. Absolute filesystem paths that might appear in that stream —
+  either from our own "failed spool file" message, or from a Laravel
+  stack-trace-like `at /var/www/app/vendor/...` line in an
+  exception — are now stripped to their basename by a new
+  `scrubPaths()` helper in `LogbookUtilityController`, and the
+  `FlushSpoolCommand` itself now reports only `failed_name`
+  (basename) instead of `failed_path` (absolute) in its result
+  array. Result: CP users never see server filesystem layout or
+  storage roots, even on command failures. Operators with shell
+  access still see the full path locally via the normal Artisan
+  invocation — scrubbing applies only at the CP boundary.
 
 ### Upgrade notes
 

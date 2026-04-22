@@ -61,20 +61,81 @@ Logbook Live Pulse
 Use these widget handles when configuring dashboard widgets:
 
 - `logbook_stats` (Overview cards)
-- `logbook_trends` (Volume by day)
+- `logbook_trends` (Volume by day + 7×24 heatmap)
 - `logbook_pulse` (Live feed)
+
+---
+
+## Control Panel walkthrough
+
+The utility lives under `Utilities → Logbook`. The same page hosts three tabs: **System**, **Audit**, and **Timeline**. Every feature below works the same on Statamic 4, 5, and 6 — the addon ships its own stylesheet and script bundle so nothing depends on the host CP's Tailwind purge configuration.
+
+### Dashboard widgets
+
+- **Overview (`logbook_stats`)**: four KPI cards showing total system lines, errors, audit events, and the busiest hour in the last 24 h. Each card carries a sparkline, a period-over-period delta chip (`↑ +12.4%`, `↓ −3%`), a status pill, and — for errors — a "Last error 3h ago" chip plus a "Top error signatures · 24h" panel that groups similar errors by a normalised fingerprint.
+- **Trends (`logbook_trends`)**: daily stacked bars for the last 14 days followed by a 7×24 channel heatmap so you can spot what hour of what day is loudest at a glance.
+- **Pulse (`logbook_pulse`)**: live mixed feed of system + audit events with quick-filter pills (System · Audit · Errors · Warnings).
+
+### Utility page features
+
+**Filtering & search.** Each tab has a sticky filter bar with date-range pickers, level / channel / action / subject dropdowns, and a full-text search on message / user / subject. Filters compose with the URL so they're shareable; empty fields are stripped so `?level=error` stays clean.
+
+**Sortable columns.** Click any column header to sort. `sort` and `dir` are whitelisted server-side per table.
+
+**Per-page + pagination.** A footer chip-style paginator (Prev · 1 · 2 · … · Next) with a `[25 | 50 | 100 | 200]` per-page dropdown. The selector preserves every other query param.
+
+**Saved filter presets.** A `Presets ▾` button on System + Audit tabs lets you snapshot the current filter URL under a name. Presets are stored per-tab in `localStorage` under `statamic-logbook.presets.<scope>`. Opening a preset restores the full filter state.
+
+**Live tail.** A pulsing toggle next to `Export CSV` polls a JSON endpoint every few seconds. When new rows land, the label becomes "N new · click to refresh". The poll automatically:
+
+- pauses when the tab is hidden (`visibilitychange`) or offline,
+- resumes on `online` / visible,
+- backs off exponentially on consecutive errors (5 s → 10 s → 20 s → 40 s, capped at 60 s with jitter),
+- relaxes toward the upper bound when the server returns no new rows for several ticks,
+- cleans up on `pagehide` / `beforeunload`.
+
+**Density toggle.** `Compact · Cozy · Spacious` in the toolbar. This is not a font-size switch: Compact hides secondary meta rows, forces single-line truncation, and shrinks chips + the filter grid; Cozy is the default; Spacious releases the cell clamp, lets long messages wrap, and enlarges the toolbar. The preference is persisted under `statamic-logbook.density` and synced across devices when preferences are linked to your CP user (see *User preferences* below).
+
+**Cell truncation + JSON viewer.** Long messages, user ids / emails, action strings and subject titles are clamped to a single line. Every row has a `JSON` action that opens the full record as pretty-printed JSON in a modal (copy-to-clipboard in two clicks). The full value is never lost.
+
+**Human-readable audit actions.** Raw event strings like `statamic.user.saved` are shown as `User updated` via an `AuditActionPresenter`. On `update` events, the row carries an inline ribbon with a truncated "from → to" summary of the first 1–2 changed fields (e.g. `title: "Old" → "New"`) using the existing `changes` column. Zero schema changes; the raw event name stays on disk so `?action=statamic.user.saved` keeps working.
+
+**Unified timeline.** The `Timeline` tab interleaves system + audit events into a single chronological rail grouped by day (`Today` / `Yesterday` / explicit dates). Filterable by type (system / audit) and severity (error / warn / info).
+
+**CSV export.** The `Export CSV` button downloads the currently-filtered rows as a CSV respecting all filters + sort.
+
+### Keyboard shortcuts
+
+- `/` — focus the search input on the current tab.
+- `g s` — go to System logs.
+- `g a` — go to Audit logs.
+
+Shortcuts are suppressed while typing in form fields.
+
+---
+
+## User preferences
+
+`logbook:install` creates a third table, `logbook_user_prefs`, in the **logbook database** (not the project database). One row per CP user, a single JSON `prefs` blob. The UI uses `localStorage` as a zero-config fallback for density / saved presets / per-page default; when the preferences table is available, a set of CP endpoints allows those values to sync across devices:
+
+- `GET    /cp/utilities/logbook/prefs`          — return every pref for the current user
+- `GET    /cp/utilities/logbook/prefs/{key}`    — return one pref
+- `PUT    /cp/utilities/logbook/prefs/{key}`    — set one pref (body: `{ "value": ... }`)
+- `DELETE /cp/utilities/logbook/prefs/{key}`    — remove one pref
+
+All four endpoints are gated by `can:view logbook` and fail soft — if the table is missing (pre-upgrade install) or the logbook DB is unreachable, the UI continues to use `localStorage` and no error is surfaced to the user. See `src/Support/UserPrefsRepository.php` for the storage contract and rationale for living in the logbook DB rather than the project DB (self-contained addon, clean uninstall by dropping the logbook DB, respects teams that deliberately separate logs from prod).
 
 ---
 
 ## Compatibility
 
+| Component | Supported            |
+| --------- | -------------------- |
+| Statamic  | v4, v5, v6           |
+| Laravel   | 9, 10, 11, 12        |
+| PHP       | 8.1, 8.2, 8.3, 8.4   |
 
-| Component | Supported  |
-| --------- | ---------- |
-| Statamic  | v4, v5, v6 |
-| Laravel   | 10, 11     |
-| PHP       | 8.1+       |
-
+Statamic 3 users stay on the dedicated [`1.x` LTS branch](https://github.com/emran-alhaddad/statamic-logbook/tree/1.x).
 
 ---
 
@@ -82,8 +143,11 @@ Use these widget handles when configuring dashboard widgets:
 
 ```bash
 composer require emran-alhaddad/statamic-logbook
-php artisan vendor:publish --tag=logbook-config
+php artisan vendor:publish --tag=logbook
+php artisan logbook:install
 ```
+
+The `logbook` tag publishes the config file, the CP stylesheet, and the CP script bundle. Statamic re-runs this automatically on `php artisan statamic:install`, so most teams only need to run it once on initial setup.
 
 ---
 
@@ -335,8 +399,11 @@ Implementation note: CP action requests are submitted as form-encoded POST with 
 
 ## Test Coverage
 
-This repository includes a lightweight PHPUnit suite focused on regression checks for critical behavior:
+This repository includes a PHPUnit suite focused on regression checks for critical behavior:
 
+- `EventMapTest` — per-major event resolution, silent filtering of missing event classes, exclusion semantics
+- `StatamicAuditSubscriberResolutionTest` — cross-major class-not-found safety, exclude-list round-trip
+- `WidgetRegistryShimTest` — capability-gated shim firing only when core registration is absent, idempotency
 - Audit action normalization mapping
 - Curated audit default mode (`discover_events=false`)
 - Pulse widget filter listener singleton guard
@@ -345,6 +412,15 @@ Run tests:
 
 ```bash
 ./vendor/bin/phpunit --configuration phpunit.xml
+```
+
+### Rebuilding the CP bundles
+
+The addon ships pre-minified `statamic-logbook.min.css` and `statamic-logbook.min.js` in `resources/dist/`. To rebuild from the source files in the same directory:
+
+```bash
+npm install
+npm run build
 ```
 
 ---
@@ -369,14 +445,18 @@ Run tests:
 
 ## Troubleshooting
 
-- If spool files are not created:
+- **Spool files are not created**:
   - run `php artisan config:clear`
   - verify `LOGBOOK_INGEST_MODE=spool`
-  - verify spool directory write permissions for PHP-FPM user
-- If flush fails:
-  - read printed `Flush error:` message
-  - inspect `storage/app/logbook/spool/failed/...`
-  - fix root cause, requeue failed file, and run flush again
+  - verify spool directory write permissions for the PHP-FPM user
+- **Flush fails**:
+  - read the `Flush error:` line from command output
+  - look under `storage/app/logbook/spool/failed/` for a file named like `20240101_12.ndjson.20250122093015.failed` — the CP UI reports only the basename on purpose, never the absolute path
+  - fix the root cause, requeue the failed file back into `spool/<type>/`, and run `php artisan logbook:flush-spool` again
+- **"Unknown database" on install**: `php artisan logbook:install` auto-creates the database on MySQL/MariaDB if the configured DB user has `CREATE DATABASE`. If your user doesn't, create the DB manually (`CREATE DATABASE logbook_database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`) and re-run install.
+- **CP widgets render as unstyled gray boxes on Statamic 6**: run `php artisan vendor:publish --tag=logbook --force` to refresh the published stylesheet + script, then clear the browser cache.
+- **Pulse widget filter pills ignore clicks on Statamic 6**: symptom of a stale `statamic-logbook.min.js` publish; re-run the vendor:publish line above.
+- **"Presets ▾" dropdown doesn't appear**: known fix in v2.0.0 (the button now portals its menu into `<body>` to escape the filter toolbar's `backdrop-filter` containing block); upgrade to v2.0.0+.
 
 ---
 
@@ -384,7 +464,8 @@ Run tests:
 
 Known tags:
 
-- `v1.5.1` (current)
+- `v2.0.0` (current) — Statamic 6 support + CP redesign + UX polish pass
+- `v1.5.1`
 - `v1.5.0`
 - `v1.4.0`
 - `v1.3.1`
@@ -393,12 +474,15 @@ Known tags:
 - `v1.1.0`
 - `v1.0.0`
 
-Recent changes after `v1.2.0` are documented under `CHANGELOG.md` -> `Unreleased`.
+Statamic 3 users continue on the `1.x` LTS branch. See `CHANGELOG.md` for the full per-version history.
 
-### Current release
+### Current release (v2.0.0)
 
-- Current release: `v1.5.1`
-- Focus: addon-level spool flush scheduler with env-controlled interval/defaults and spool-mode activation guard.
+The v2 release targets three things at once:
+
+1. **First-class Statamic 6 support.** The core widget registry binding conflict that broke the dashboard on Statamic 6 is gone. Event references are string FQCNs filtered through `class_exists()` so missing-event-class fatals across majors never happen. `Audit\EventMap` ships a curated per-major event registry (majors 3–6) that returns only the event classes that exist on the running major.
+2. **Self-contained CP surface.** The addon ships its own stylesheet (`resources/dist/statamic-logbook.min.css`) and script bundle (`resources/dist/statamic-logbook.min.js`) registered via Statamic's `$stylesheets` / `$scripts`. Rendering is independent of the host CP's Tailwind purge configuration, and the script runs outside the Vue-compiled widget subtree so Statamic 6's `DynamicHtmlRenderer` can't strip it.
+3. **Deep CP UX pass.** Sortable columns, density toggle, saved filter presets, live tail with adaptive polling, keyboard shortcuts, unified timeline, per-page selector, chip-style paginator, error fingerprint grouping, 7×24 channel heatmap, humanised audit actions with inline "from → to" ribbons, cross-device user preferences table, and more. See `CHANGELOG.md` for the full list.
 
 ---
 
