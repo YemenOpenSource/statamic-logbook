@@ -60,11 +60,29 @@ dedicated `1.x` LTS branch.
 
 ### Fixed
 
+* **Addon is now discoverable by Statamic.** Added the missing
+  `extra.statamic` block to `composer.json`. Statamic's
+  `\Statamic\Addons\Manifest::build()` filters `vendor/composer/installed.json`
+  to packages that declare `extra.statamic`; without it, the addon was
+  silently absent from `Addon::all()`, `AddonServiceProvider::getAddon()`
+  returned `null`, and the entire Statamic boot chain (including
+  `bootWidgets`, `bootCommands`, and `bootAddon`) was skipped. The legacy
+  `statamic.widgets` rebind was a workaround hiding this misconfiguration
+  on v5. On Statamic 6 it broke core widget registration while still not
+  actually running the boot chain, producing `WidgetNotFoundException` on
+  the dashboard.
 * **Statamic 6 boot regression.** Removed the eager
   `$this->app->bind('statamic.widgets', …)` rebind in
   `LogbookServiceProvider::register()` that clobbered
   `Statamic\Providers\ExtensionServiceProvider::registerBindingAlias()` and
   broke widget registration on Statamic 6.
+* **Widget registry shim firing order.** The shim no longer wraps its own
+  call in a nested `Statamic::booted(...)`. `bootAddon()` runs inside the
+  booted callback already, and `Statamic::runBootedCallbacks()` iterates
+  a snapshot and empties the queue, so any callback queued from within
+  would never fire. The shim now runs synchronously at the tail of
+  `bootAddon()`, after the parent chain's `bootWidgets()` has already
+  populated the core binding.
 * **Cross-major class-not-found fatals.** All Statamic event references are
   now string FQCNs filtered through `class_exists()` before `Event::listen()`
   so majors that have removed or renamed an event class never produce a
